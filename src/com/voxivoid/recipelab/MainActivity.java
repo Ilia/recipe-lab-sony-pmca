@@ -95,6 +95,13 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private Keys.Caps caps = Keys.Caps.UNKNOWN;                 // the shortcut keys this body reports (KeyProbe)
     private HintBar hints;
     private SponsorLine sponsor;
+    // Display overlays (app menu): the choices, the grid and histogram over the live image, and the histogram's data
+    private boolean[] display = DisplayOptions.defaults();
+    private CompositionGridView grid;
+    private HistogramView histogramView;
+    private SonyHistogramSource histogram;
+    private boolean resumed = false, previewOn = false;          // between onResume and onPause · the preview started on the surface
+    private final Runnable overlays = new Runnable() { public void run() { applyOverlays(); } };
     private LinearLayout chips;
     private final TextView[] chipLabel = new TextView[N], chipValue = new TextView[N];
     private final View[] chip = new View[N];
@@ -149,6 +156,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         favs = Favourites.decode(favStored, library);
         settleIdx = DevTools.clampSettle(prefs.getInt("settle", DevTools.SETTLE_DEFAULT));
         langChoice = Lang.parseChoice(prefs.getString("language", null));
+        for (int i = 0; i < DisplayOptions.KEYS.length; i++) display[i] = prefs.getBoolean(DisplayOptions.KEYS[i], display[i]);
         panel = findViewById(R.id.panel);
         picker = (PickerView) findViewById(R.id.picker);
         chipScroll = (HorizontalScrollView) findViewById(R.id.chipscroll);
@@ -164,6 +172,12 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         sponsor = (SponsorLine) findViewById(R.id.sponsor);
         mini = (TextView) findViewById(R.id.mini);
         toast = (TextView) findViewById(R.id.toast);
+        grid = (CompositionGridView) findViewById(R.id.grid);
+        histogramView = (HistogramView) findViewById(R.id.histogram);
+        histogram = new SonyHistogramSource(handler, histogramView, new Logger() {
+            public void info(String msg) { logPreview(msg); }
+            public void error(String msg, Throwable t) { logPreview(msg + ": " + t); }
+        });
         prompt = (PromptView) findViewById(R.id.prompt);
         menu = (MenuView) findViewById(R.id.menu);
         keyboard = (KeyboardView) findViewById(R.id.keyboard);
@@ -313,6 +327,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         load();
         reloadCustoms();                                         // the card may have been edited over USB, or swapped
         int last = library.indexOfCustom(prefs.getString("customRecipe", null));
@@ -340,6 +355,9 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     @Override
     protected void onPause() {
         super.onPause();
+        resumed = false; previewOn = false;
+        handler.removeCallbacks(overlays);
+        applyOverlays();                                         // the histogram's listener comes off before the camera is released
         stopRun(false);                                          // a run cannot outlive the camera it shoots with
         stopTransfer();                                          // leaving the app stops Transfer to phone: hotspot off, auto power-off back
         closeMenu();
@@ -365,11 +383,13 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     public void surfaceCreated(SurfaceHolder h) {
-        try { camera.setPreviewDisplay(h); camera.startPreview(); }
+        try { camera.setPreviewDisplay(h); camera.startPreview(); previewOn = true; }
         catch (Throwable t) { previewOk = false; previewErr = String.valueOf(t); logPreview("preview did not start: " + previewErr); render(); }
+        try { Camera.Size s = camera.getParameters().getPreviewSize(); grid.setPreviewSize(s.width, s.height); } catch (Throwable t) {}
+        refreshOverlays();
     }
     public void surfaceChanged(SurfaceHolder h, int f, int w, int hh) {}
-    public void surfaceDestroyed(SurfaceHolder h) {}
+    public void surfaceDestroyed(SurfaceHolder h) { previewOn = false; refreshOverlays(); }
 
     // ------------------------------------------------------------ stored settings
     /** a slot's byte as an unsigned index */
@@ -545,9 +565,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             }
         }
         prompt.setVisibility(View.VISIBLE);
+        refreshOverlays();
     }
 
-    private void closePrompt() { prompt.setVisibility(View.GONE); promptOpen = false; }
+    private void closePrompt() { prompt.setVisibility(View.GONE); promptOpen = false; refreshOverlays(); }
 
     private int promptOptions() {
         switch (promptKind) {
@@ -668,23 +689,25 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
                 DevTools.transferPage(transfer.state(), transfer.stats(), transfer.rate(), transferSync), Keys.hints(Keys.H_TRANSFER, caps));
         else {
             int n = DevTools.rows(menuLevel);
-            boolean app = menuLevel == DevTools.LEVEL_APP, snapshotTaken = !app && snapFile().exists();
+            boolean app = menuLevel == DevTools.LEVEL_APP, disp = menuLevel == DevTools.LEVEL_DISPLAY;
+            boolean snapshotTaken = menuLevel == DevTools.LEVEL_DEV && snapFile().exists();
             String[] labels = new String[n], details = new String[n], values = new String[n];
             Typeface[] faces = new Typeface[n];
             for (int i = 0; i < n; i++) {
-                labels[i] = app ? DevTools.appLabel(i) : DevTools.rowLabel(i, snapshotTaken, settleIdx);
-                details[i] = app ? DevTools.appDetail(i) : DevTools.rowDetail(i, snapshotTaken);
-                values[i] = app ? DevTools.appValue(i, overlay, langChoice) : DevTools.rowValue(i, settleIdx);
+                labels[i] = app ? DevTools.appLabel(i) : disp ? DisplayOptions.label(i) : DevTools.rowLabel(i, snapshotTaken, settleIdx);
+                details[i] = app ? DevTools.appDetail(i) : disp ? DisplayOptions.detail(i) : DevTools.rowDetail(i, snapshotTaken);
+                values[i] = app ? DevTools.appValue(i, overlay, langChoice) : disp ? DisplayOptions.value(i, display) : DevTools.rowValue(i, settleIdx);
             }
             if (app) faces[DevTools.APP_LANG] = UiFont.of(this, Lang.choiceScript(langChoice));   // 简体中文 in its own font, whatever the menu's
             boolean value = values[menuSel] != null;
             int legend = app ? (value ? Keys.H_MENU_TOP_VALUE : Keys.H_MENU_TOP) : (value ? Keys.H_MENU_SUB_VALUE : Keys.H_MENU_SUB);
-            menu.set(app ? DevTools.APP_TITLE : DevTools.title(), labels, details, values, faces, DevTools.icons(menuLevel), menuSel, Keys.hints(legend, caps));
+            menu.set(app ? DevTools.APP_TITLE : disp ? DisplayOptions.title() : DevTools.title(), labels, details, values, faces, DevTools.icons(menuLevel), menuSel, Keys.hints(legend, caps));
         }
         menu.setVisibility(View.VISIBLE);
+        refreshOverlays();
     }
 
-    private void closeMenu() { menu.setVisibility(View.GONE); menuOpen = false; }
+    private void closeMenu() { menu.setVisibility(View.GONE); menuOpen = false; refreshOverlays(); }
 
     /** the installed version, from the package — never a string in this file (tools/check-version.sh) */
     private String versionName() {
@@ -700,6 +723,11 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     /** the centre button on a menu row */
     private void pickMenuRow() {
+        if (menuLevel == DevTools.LEVEL_DISPLAY) {               // on ↔ off, or Restore defaults; the submenu stays open
+            if (!DisplayOptions.toggle(display, menuSel)) DisplayOptions.restore(display);
+            saveDisplay(); renderMenu(); render();
+            return;
+        }
         if (menuLevel == DevTools.LEVEL_APP) {
             switch (menuSel) {
                 case DevTools.APP_BROWSE: closeMenu(); browse(); break;
@@ -707,6 +735,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
                 case DevTools.APP_TRANSFER: openTransfer(false); break;
                 case DevTools.APP_SYNC: openTransfer(true); break;
                 case DevTools.APP_PANEL: case DevTools.APP_LANG: stepMenuValue(+1); break;
+                case DevTools.APP_DISPLAY: menuLevel = DevTools.LEVEL_DISPLAY; menuSel = 0; renderMenu(); break;
                 case DevTools.APP_RESET: closeMenu(); askReset(); break;
                 case DevTools.APP_REPORT: closeMenu(); saveReport(); break;
                 case DevTools.APP_ABOUT: menuPage = PAGE_ABOUT; renderMenu(); break;
@@ -734,7 +763,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         } else if (menuLevel == DevTools.LEVEL_DEV && menuSel == DevTools.ROW_SETTLE) {
             settleIdx = DevTools.nextSettle(settleIdx, dir);
             prefs.edit().putInt("settle", settleIdx).commit();
-        } else return false;
+        } else if (menuLevel == DevTools.LEVEL_DISPLAY && DisplayOptions.set(display, menuSel, dir > 0)) saveDisplay();   // left off, right on
+        else return false;
         renderMenu(); render();
         return true;
     }
@@ -755,6 +785,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             case K_MENU: case K_SK1:
                 swallowMenuUp = true;
                 if (menuLevel == DevTools.LEVEL_DEV) { menuLevel = DevTools.LEVEL_APP; menuSel = DevTools.APP_DEV; renderMenu(); }
+                else if (menuLevel == DevTools.LEVEL_DISPLAY) { menuLevel = DevTools.LEVEL_APP; menuSel = DevTools.APP_DISPLAY; renderMenu(); }
                 else closeMenu();
                 return true;
         }
@@ -811,6 +842,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         if (!logging) return;
         logging = false; logLines.clear();
         menu.setVisibility(View.GONE);
+        refreshOverlays();
     }
 
     private void renderLogger() {
@@ -819,6 +851,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         for (int i = 0; i < logLines.size(); i++) lines[i + 1] = logLines.get(logLines.size() - 1 - i);   // newest first
         menu.setPage(DevTools.logTitle(KeyProbe.prop("model.name"), KeyProbe.prop("version.platform")), lines, Keys.hints(Keys.H_LOGGER, caps));
         menu.setVisibility(View.VISIBLE);
+        refreshOverlays();
     }
 
     private void appendKeyLog(String line) {
@@ -921,6 +954,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     /** the shutter key: a frame with the recipe on screen; a refusal is logged, as it was always swallowed */
     private void shootKey() {
         try { shoot(Recipes.displayName(library.get(recipe)) + (dirty() ? " (preview)" : "")); } catch (Throwable t) {}
+        histogramView.setHeights(null);                          // the frame before the shot is not the scene after it
     }
 
     /** the shutter key's release, as the run and the key handler both need it */
@@ -1007,9 +1041,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         String title = nameFor == NAME_RENAME ? Lang.t("name_title_rename", library.get(recipe).name) : Lang.t("name_title_new");
         keyboard.set(title, nameEntry, Keys.hints(Keys.H_NAME, caps));
         keyboard.setVisibility(View.VISIBLE);
+        refreshOverlays();
     }
 
-    private void closeName() { if (keyboard != null) keyboard.setVisibility(View.GONE); nameOpen = false; }
+    private void closeName() { if (keyboard != null) keyboard.setVisibility(View.GONE); nameOpen = false; refreshOverlays(); }
 
     /** keys while the name editor is up: the four-way and the dials move, centre types, trash deletes, MENU cancels */
     private boolean nameKey(int sc) {
@@ -1195,6 +1230,31 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         } catch (Throwable t) { previewOk = false; previewErr = String.valueOf(t.getMessage()); logPreview("parameters refused: " + previewErr); }
     }
 
+    // ------------------------------------------------------------ Display overlays (app menu)
+    /** the Display overlays choices, each under its own key, in one commit */
+    private void saveDisplay() {
+        SharedPreferences.Editor e = prefs.edit();
+        for (int i = 0; i < DisplayOptions.KEYS.length; i++) e.putBoolean(DisplayOptions.KEYS[i], display[i]);
+        e.commit();
+    }
+
+    /** once the key or callback being handled is done, so a menu that closes and a question that opens register nothing in between */
+    private void refreshOverlays() { handler.removeCallbacks(overlays); handler.post(overlays); }
+
+    /**
+     * The grid and the histogram are aids for the live image: shown only over it, as chosen — never over a menu, the brand
+     * list, a question, the name editor or a sample run, and not before the preview runs. The histogram's listener is
+     * registered exactly while the histogram is shown.
+     */
+    private void applyOverlays() {
+        boolean live = resumed && previewOn && cameraEx != null && !menuOpen && !logging && !promptOpen && !nameOpen && !running
+                && overlay != OV_BROWSER;
+        boolean hist = live && display[DisplayOptions.HISTOGRAM];
+        grid.setVisibility(live && display[DisplayOptions.GRID] ? View.VISIBLE : View.GONE);
+        histogramView.setVisibility(hist ? View.VISIBLE : View.GONE);
+        if (hist) histogram.start(cameraEx); else histogram.stop();
+    }
+
     // ------------------------------------------------------------ UI
     private void showToast(String msg, int ms) {
         toast.setText(msg); toast.setVisibility(View.VISIBLE);
@@ -1203,6 +1263,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     private void render() {
+        refreshOverlays();
         Recipes.Recipe r = library.get(recipe);
         boolean dirty = dirty();
         String pos = library.position(recipe);
@@ -1219,6 +1280,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             nameOriginal.setText(original == null ? "" : original);
             nameOriginal.setVisibility(original == null ? View.GONE : View.VISIBLE);
             count.setText(grp + "   " + pos);
+            count.setVisibility(display[DisplayOptions.COUNTER] ? View.VISIBLE : View.GONE);
             tag.setText(Lang.t("tag_jpeg_only"));                    // a Picture Effect: the camera drops it under RAW
             tag.setTextColor(ACCENT);
             tag.setVisibility(edit[R_PE] != 0 ? View.VISIBLE : View.GONE);
@@ -1259,10 +1321,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
                     if (l < sx) chipScroll.smoothScrollTo(l - dp(8), 0); else if (rgt > sx + w) chipScroll.smoothScrollTo(rgt - w + dp(8), 0);
                 } });
             }
-            hints.setVisibility(overlay == OV_QUIET ? View.GONE : View.VISIBLE);
+            hints.setVisibility(overlay == OV_QUIET || !display[DisplayOptions.HINTS] ? View.GONE : View.VISIBLE);
             hints.setMode(onActions ? Keys.H_ACTIONS : row == 0 ? HintBar.RECIPE : focus ? HintBar.EDIT : HintBar.CHIPS);
         } else if (overlay == OV_PILL) {
-            panel.setVisibility(View.GONE); mini.setVisibility(View.VISIBLE);
+            panel.setVisibility(View.GONE); mini.setVisibility(display[DisplayOptions.MINI] ? View.VISIBLE : View.GONE);
             mini.setText(Params.miniLine(r, pos, cur, edit, dirty));
         } else {
             panel.setVisibility(View.GONE); mini.setVisibility(View.GONE);

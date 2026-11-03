@@ -315,6 +315,14 @@ public class MenuView extends View {
                 c.drawRoundRect(box, 2 * d, 2 * d, glyph);
                 c.drawLine(cx - s * 0.6f, cy + s * 0.35f, cx + s * 0.6f, cy + s * 0.35f, glyph);
                 return;
+            case DevTools.IC_DISPLAY:                               // a frame with the rule-of-thirds lines in it
+                box.set(cx - s, cy - s * 0.75f, cx + s, cy + s * 0.75f);
+                c.drawRoundRect(box, 2 * d, 2 * d, glyph);
+                for (int k = -1; k <= 1; k += 2) {
+                    c.drawLine(cx + k * s / 3, cy - s * 0.75f, cx + k * s / 3, cy + s * 0.75f, glyph);
+                    c.drawLine(cx - s, cy + k * s * 0.25f, cx + s, cy + k * s * 0.25f, glyph);
+                }
+                return;
             case DevTools.IC_LANGUAGE:                              // a globe: ring, meridian, equator
                 c.drawCircle(cx, cy, s, glyph);
                 box.set(cx - s * 0.45f, cy - s, cx + s * 0.45f, cy + s);
