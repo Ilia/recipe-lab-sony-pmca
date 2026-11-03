@@ -111,13 +111,14 @@ install() {
   rm -rf "$w" && mkdir -p "$w"
   cp "$apk" "$w/in.apk"
   # the native library cannot load here, and the camera's signature lists it: both go, and a throwaway key signs again
-  zip -q -d "$w/in.apk" 'lib/*' 'META-INF/*'
+  zip -q -d "$w/in.apk" 'lib/*' 'META-INF/*' || [ $? -eq 12 ]   # 12: neither was there (an unsigned, Java-only build)
   [ -f "$KEYTOOL_STORE" ] || keytool -genkeypair -keystore "$KEYTOOL_STORE" -alias emulator -keyalg RSA -keysize 2048 \
       -validity 10000 -storepass android -keypass android -dname "CN=Recipe Lab emulator" >/dev/null 2>&1
   "$BT/zipalign" -f 4 "$w/in.apk" "$w/aligned.apk"
   "$BT/apksigner" sign --ks "$KEYTOOL_STORE" --ks-pass pass:android --v2-signing-enabled false --v3-signing-enabled false \
       --min-sdk-version 10 --out "$w/emulator.apk" "$w/aligned.apk"
-  if ! "$ADB" install -r "$w/emulator.apk" 2>&1 | tee "$w/install.log" | grep -q Success; then
+  # -d: one branch's dev build after another's is often a lower versionCode, and switching builds is the point here
+  if ! "$ADB" install -r -d "$w/emulator.apk" 2>&1 | tee "$w/install.log" | grep -q Success; then
     grep -q UPDATE_INCOMPATIBLE "$w/install.log" || { cat "$w/install.log" >&2; die "install failed"; }
     "$ADB" uninstall com.voxivoid.recipelab >/dev/null       # installed under another key: it has to go first
     "$ADB" install "$w/emulator.apk" | grep -q Success || die "install failed"
