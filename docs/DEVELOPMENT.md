@@ -121,8 +121,7 @@ down or the wheel move, the centre button runs a row, a short MENU goes back a l
 | **Browse recipes** | the brand list, as Fn opens it |
 | **New recipe** | the name editor, then the camera's current *stored* settings become a custom recipe ([Custom recipes](#custom-recipes)) |
 | **Transfer to phone** | a page of the menu that starts the camera's hotspot and serves the memory card for Recipe Lab Studio until MENU — [Transfer to phone](#transfer-to-phone) |
-| **Panel visibility** | a value — *Full* / *No keys* / *Label* / *Hidden* (`DevTools.PANELS`) — that left / right step through in place, wrapping, with the menu left open; centre steps forward. The same states trash cycles. *No keys* (`OV_QUIET`) is the full panel, chips and all (`Params.panelUp`), without the `HintBar` legend; closing the browser returns to it if it was left on it |
-| **Display overlays >** | a submenu ([Display overlays](#display-overlays)): one ON / OFF row per thing over the live image — live histogram, composition grid, recipe counter, recipe label, button hints — and Restore defaults |
+| **Display >** | a submenu ([Display](#display)): Panel visibility, live histogram, composition grid, recipe counter, Restore defaults |
 | **Language** | a value — *Auto* / *English* / *简体中文* / *繁體中文* / *日本語* / *한국어* / *Tiếng Việt* — stepped the same way, kept in the app's preferences under `language` by code (`Lang.CODES`). The app redraws in it at once. *Auto* follows the camera's locale (`Lang.fromLocale`); each language's name is drawn in its own script and font. See [LOCALIZATION.md](LOCALIZATION.md) |
 | **Reset settings** | asks `DevTools.resetTitle()` (Cancel highlighted), then stages `Recipes.FACTORY` and stores it (`writeAll`, so the quality prompt still asks when it must). The same look as **Factory**, the first Sony recipe, which is in the list like the others (it was hidden once, and users went looking for it) |
 | **Save a bug report** | `saveReport()`: one file, `RECIPLAB/REPORT.TXT`, replaced on every save — the header, mode and `STATE` as of now, then the end of `LOG1.TXT` + `LOG.TXT` (48 KB), of `LOCKS.TXT`, `DIFF.TXT` and `KEYS.TXT` (8 KB each) and every camera parameter (`CardLog.report`). No card: a toast says so. Its second line is the app as shown (`CardLog.app`: the recipe, ACTIVE / PREVIEW, EDITED, the language, the custom recipes and any skipped file, the favourites), and the header carries the firmware (`KeyProbe.firmware`), so the bug form asks for this file and a description only, as most reporters are not developers |
@@ -144,24 +143,29 @@ The **developer menu** holds the tools that are not part of using the app:
 
 New functions go in as app menu rows, not on new keys — see [Keys on every body](#keys-on-every-body).
 
-### Display overlays
+### Display
 
-**Hold MENU → Display overlays** (`DevTools.LEVEL_DISPLAY`, rows and rules in `DisplayOptions`). Each row is one
-element: left sets it OFF, right ON (setting the same value again changes nothing, nothing wraps), centre toggles;
-centre on **Restore defaults** puts these rows back and leaves the submenu open. MENU goes back to the app menu on
-Display overlays, a second MENU closes it. Every change is committed at once, one key per element in the app's
-preferences — never in the camera's store:
+**Hold MENU → Display** (`DevTools.LEVEL_DISPLAY`, rows and rules in `DisplayOptions`): what sits over the live
+image, in one place. MENU goes back to the app menu on Display, a second MENU closes it.
+
+**Panel visibility**, the first row, is a value — *Full* / *No keys* / *Label* / *Hidden* (`DevTools.PANELS`) — that
+left / right step through in place, wrapping; centre steps forward. The same states trash cycles, and like them it is
+not kept between openings: every opening starts on Full. *No keys* (`OV_QUIET`) is the full panel, chips and all
+(`Params.panelUp`), without the `HintBar` legend; closing the browser returns to it if it was left on it.
+
+The next rows are one element each: left sets it OFF, right ON (setting the same value again changes nothing, nothing
+wraps), centre toggles. Every change is committed at once, one key per element in the app's preferences — never in
+the camera's store. Centre on **Restore defaults** puts them back, and the panel to Full, leaving the submenu open:
 
 | row | key | default | what it controls |
 |---|---|---|---|
 | Live histogram | `display.histogram` | off | `HistogramView`, top right of the live view |
 | Composition grid | `display.grid` | off | `CompositionGridView`, rule-of-thirds lines |
 | Recipe counter | `display.counter` | on | `@id/count`, the brand and position line over the name (never the name or its badges) |
-| Recipe label | `display.miniLabel` | on | `@id/mini`, the pill of the Label panel; off, Label shows nothing |
-| Button hints | `display.hints` | on | `@id/hints`, the full panel's key legend (never a menu's legend); No keys still hides it |
 
-Panel visibility and trash are untouched: they still walk Full / No keys / Label / Hidden, and the histogram and grid
-show in all four. The histogram and grid are shown only over the live image (`applyOverlays`): not over a menu or a
+The key legend and the Label pill have no switches of their own: *No keys* and *Hidden* already take them away, and a
+second switch for each left trash with a press that changed nothing on screen. The histogram and grid show in all
+four panel states. The histogram and grid are shown only over the live image (`applyOverlays`): not over a menu or a
 page, the brand list, a question, the name editor, the key logger or a sample run, and not before the preview has
 started on the surface. Every place that opens or closes one of those calls `refreshOverlays()`, which applies the
 result once the key being handled is done; `onPause` applies it at once, so the listener comes off before the camera
@@ -531,7 +535,7 @@ centre, MENU, trash, shutter — and Fn is the one shortcut on top:
 | store the recipe | centre | — |
 | favourite | hold centre | — |
 | brand list | hold MENU → Browse recipes | Fn |
-| hide the panel | trash, or hold MENU → Panel visibility | — |
+| hide the panel | trash, or hold MENU → Display → Panel visibility | — |
 | reset to factory | hold trash, or hold MENU → Reset settings — both ask first | — |
 | developer tools | hold MENU → Developer | — |
 | exit | MENU | — |
@@ -722,7 +726,7 @@ against a SHA-256 pinned in the script (`JUNIT_JAR=<path>` points it at a copy w
 | `ParamsChipsTest` | chip visibility, stepping (wrap vs clamp, the effect → SUB / quality side effects), LEFT/RIGHT and UP/DOWN landing spots, chip text |
 | `ParamsHudTest` | the meta line (warnings only: RAW under an effect, no live preview — the values are on the chips), the minimal pill, the quality prompt |
 | `ParamsToolsTest` | the snapshot tool's id list — including that `res/raw/ids.txt` is well formed and lists every slot the app writes — and its diff lines |
-| `DisplayOptionsTest` | Display overlays: the defaults, one key per element, left off / right on / centre toggles, Restore defaults touching only these, the submenu as its own level, every row named in every language, the grid's rectangle |
+| `DisplayOptionsTest` | Display: the panel row first and unsaved, the defaults, one key per element, left off / right on / centre toggles, Restore defaults (options and panel), the submenu as its own level, every row named in every language, the grid's rectangle |
 | `HistogramMathTest` | the histogram's bars: unsigned bins, dark to bright, means of uneven shares, a narrow spike lowered not lost, no overflow, nothing drawn for input that is not a histogram, at most eight frames a second |
 | `DevToolsTest` | the app menu and developer menu rows, About, the Transfer to phone page (chip, card, problem and instruction lines, footer, in Chinese too) and the key logger's lines, settle delays, the sample run's progress / finish lines, and its manifest — a parsable line per recipe, in run order |
 | `KeysTest` | the press / hold gesture, the trash-hold guard, and that the legend never names a key the body lacks — every function on a universal key, Fn only when reported, the order pick · browse · save · fav · menu · hide · exit, the reset hold never hinted |

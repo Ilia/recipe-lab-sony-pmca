@@ -156,7 +156,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         favs = Favourites.decode(favStored, library);
         settleIdx = DevTools.clampSettle(prefs.getInt("settle", DevTools.SETTLE_DEFAULT));
         langChoice = Lang.parseChoice(prefs.getString("language", null));
-        for (int i = 0; i < DisplayOptions.KEYS.length; i++) display[i] = prefs.getBoolean(DisplayOptions.KEYS[i], display[i]);
+        for (int i = 0; i < DisplayOptions.KEYS.length; i++) if (DisplayOptions.KEYS[i] != null) display[i] = prefs.getBoolean(DisplayOptions.KEYS[i], display[i]);
         panel = findViewById(R.id.panel);
         picker = (PickerView) findViewById(R.id.picker);
         chipScroll = (HorizontalScrollView) findViewById(R.id.chipscroll);
@@ -696,7 +696,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             for (int i = 0; i < n; i++) {
                 labels[i] = app ? DevTools.appLabel(i) : disp ? DisplayOptions.label(i) : DevTools.rowLabel(i, snapshotTaken, settleIdx);
                 details[i] = app ? DevTools.appDetail(i) : disp ? DisplayOptions.detail(i) : DevTools.rowDetail(i, snapshotTaken);
-                values[i] = app ? DevTools.appValue(i, overlay, langChoice) : disp ? DisplayOptions.value(i, display) : DevTools.rowValue(i, settleIdx);
+                values[i] = app ? DevTools.appValue(i, langChoice) : disp ? DisplayOptions.value(i, display, overlay) : DevTools.rowValue(i, settleIdx);
             }
             if (app) faces[DevTools.APP_LANG] = UiFont.of(this, Lang.choiceScript(langChoice));   // 简体中文 in its own font, whatever the menu's
             boolean value = values[menuSel] != null;
@@ -723,8 +723,9 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     /** the centre button on a menu row */
     private void pickMenuRow() {
-        if (menuLevel == DevTools.LEVEL_DISPLAY) {               // on ↔ off, or Restore defaults; the submenu stays open
-            if (!DisplayOptions.toggle(display, menuSel)) DisplayOptions.restore(display);
+        if (menuLevel == DevTools.LEVEL_DISPLAY) {               // the panel steps, an option flips, or Restore defaults; the submenu stays open
+            if (menuSel == DisplayOptions.PANEL) { stepMenuValue(+1); return; }
+            if (!DisplayOptions.toggle(display, menuSel)) { DisplayOptions.restore(display); overlay = OV_FULL; }
             saveDisplay(); renderMenu(); render();
             return;
         }
@@ -734,7 +735,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
                 case DevTools.APP_NEW: closeMenu(); openName(NAME_NEW); break;   // the camera's current settings, kept as a recipe
                 case DevTools.APP_TRANSFER: openTransfer(false); break;
                 case DevTools.APP_SYNC: openTransfer(true); break;
-                case DevTools.APP_PANEL: case DevTools.APP_LANG: stepMenuValue(+1); break;
+                case DevTools.APP_LANG: stepMenuValue(+1); break;
                 case DevTools.APP_DISPLAY: menuLevel = DevTools.LEVEL_DISPLAY; menuSel = 0; renderMenu(); break;
                 case DevTools.APP_RESET: closeMenu(); askReset(); break;
                 case DevTools.APP_REPORT: closeMenu(); saveReport(); break;
@@ -755,7 +756,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     /** left / right on a row that has a value: change it in place, the menu stays open; false when the row has none */
     private boolean stepMenuValue(int dir) {
-        if (menuLevel == DevTools.LEVEL_APP && menuSel == DevTools.APP_PANEL) overlay = DevTools.nextPanel(overlay, dir);
+        if (menuLevel == DevTools.LEVEL_DISPLAY && menuSel == DisplayOptions.PANEL) overlay = DevTools.nextPanel(overlay, dir);   // as trash does
         else if (menuLevel == DevTools.LEVEL_APP && menuSel == DevTools.APP_LANG) {
             langChoice = Lang.nextChoice(langChoice, dir);
             prefs.edit().putString("language", Lang.choiceCode(langChoice)).commit();
@@ -1230,11 +1231,11 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         } catch (Throwable t) { previewOk = false; previewErr = String.valueOf(t.getMessage()); logPreview("parameters refused: " + previewErr); }
     }
 
-    // ------------------------------------------------------------ Display overlays (app menu)
-    /** the Display overlays choices, each under its own key, in one commit */
+    // ------------------------------------------------------------ Display (app menu)
+    /** the Display options, each under its own key, in one commit; the panel state is not one of them */
     private void saveDisplay() {
         SharedPreferences.Editor e = prefs.edit();
-        for (int i = 0; i < DisplayOptions.KEYS.length; i++) e.putBoolean(DisplayOptions.KEYS[i], display[i]);
+        for (int i = 0; i < DisplayOptions.KEYS.length; i++) if (DisplayOptions.KEYS[i] != null) e.putBoolean(DisplayOptions.KEYS[i], display[i]);
         e.commit();
     }
 
@@ -1321,10 +1322,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
                     if (l < sx) chipScroll.smoothScrollTo(l - dp(8), 0); else if (rgt > sx + w) chipScroll.smoothScrollTo(rgt - w + dp(8), 0);
                 } });
             }
-            hints.setVisibility(overlay == OV_QUIET || !display[DisplayOptions.HINTS] ? View.GONE : View.VISIBLE);
+            hints.setVisibility(overlay == OV_QUIET ? View.GONE : View.VISIBLE);
             hints.setMode(onActions ? Keys.H_ACTIONS : row == 0 ? HintBar.RECIPE : focus ? HintBar.EDIT : HintBar.CHIPS);
         } else if (overlay == OV_PILL) {
-            panel.setVisibility(View.GONE); mini.setVisibility(display[DisplayOptions.MINI] ? View.VISIBLE : View.GONE);
+            panel.setVisibility(View.GONE); mini.setVisibility(View.VISIBLE);
             mini.setText(Params.miniLine(r, pos, cur, edit, dirty));
         } else {
             panel.setVisibility(View.GONE); mini.setVisibility(View.GONE);

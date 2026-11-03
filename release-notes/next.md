@@ -1,6 +1,6 @@
 New
-- Hold MENU → Display overlays: turn on a live histogram (top right) and a rule-of-thirds grid over the live image, or hide the recipe counter, the label of the Label panel and the button hints. Each has its own row: left turns it off, right on. Restore defaults puts these back and changes nothing else.
+- Hold MENU → Display: one place for what sits over the live image. Panel visibility moved here, and beside it you can turn on a live histogram (top right) and a rule-of-thirds grid, or hide the recipe counter. Restore defaults puts these back to how the app started.
 
 Please try
-- Hold MENU → Display overlays, turn Live histogram on, then point the camera at a bright window and at a dark wall: the graph should move with the scene. If no graph appears, hold MENU → Save a bug report and attach RECIPLAB/REPORT.TXT on GitHub.
+- Hold MENU → Display, turn Live histogram on, then point the camera at a bright window and at a dark wall: the graph should move with the scene. If no graph appears, hold MENU → Save a bug report and attach RECIPLAB/REPORT.TXT on GitHub.
 - With Composition grid on, check the lines divide the picture into thirds and do not run over black bars at its edges.

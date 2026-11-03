@@ -63,7 +63,7 @@ class DevToolsTest {
         assertEquals(DevTools.ROWS, DevTools.rows(DevTools.LEVEL_DEV));
         String[] labels = new String[DevTools.APP_ROWS];
         for (int r = 0; r < DevTools.APP_ROWS; r++) labels[r] = DevTools.appLabel(r);
-        assertEquals(Arrays.asList("Browse recipes", "New recipe", "Transfer to phone", "Sync recipes", "Panel visibility", "Display overlays  >", "Language", "Reset settings", "Save a bug report", "About", "Developer  >"), Arrays.asList(labels));
+        assertEquals(Arrays.asList("Browse recipes", "New recipe", "Transfer to phone", "Sync recipes", "Display  >", "Language", "Reset settings", "Save a bug report", "About", "Developer  >"), Arrays.asList(labels));
         assertTrue(DevTools.appDetail(DevTools.APP_NEW).contains("current settings"), "the row says what it keeps");
         assertEquals(DevTools.APP_BROWSE, 0, "the menu opens on Browse, so a body without Fn is one press from the list");
     }
@@ -85,25 +85,20 @@ class DevToolsTest {
         for (int r = 0; r < DevTools.APP_ROWS; r++) assertFalse(DevTools.appDetail(r).isEmpty(), "row " + r);
     }
 
-    @Test void onlyThePanelAndLanguageRowsHaveAValue() {
-        assertEquals("Full", DevTools.appValue(DevTools.APP_PANEL, Params.OV_FULL, Lang.AUTO));
-        assertEquals("No keys", DevTools.appValue(DevTools.APP_PANEL, Params.OV_QUIET, Lang.AUTO));
-        assertEquals("Label", DevTools.appValue(DevTools.APP_PANEL, Params.OV_PILL, Lang.AUTO));
-        assertEquals("Hidden", DevTools.appValue(DevTools.APP_PANEL, Params.OV_HIDDEN, Lang.AUTO));
+    @Test void onlyTheLanguageRowHasAValue() {
         for (int r = 0; r < DevTools.APP_ROWS; r++)
-            if (r != DevTools.APP_PANEL && r != DevTools.APP_LANG) assertNull(DevTools.appValue(r, Params.OV_FULL, Lang.AUTO), "row " + r);
-        assertFalse(DevTools.appDetail(DevTools.APP_PANEL).contains("left / right"), "the drawn arrows say how to change it");
-        assertFalse(DevTools.appDetail(DevTools.APP_LANG).contains("left / right"));
+            if (r != DevTools.APP_LANG) assertNull(DevTools.appValue(r, Lang.AUTO), "row " + r);
+        assertFalse(DevTools.appDetail(DevTools.APP_LANG).contains("left / right"), "the drawn arrows say how to change it");
     }
 
     @Test void theLanguageRowNamesEachLanguageInItsOwnScript() {
-        assertEquals("Auto", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.AUTO));
-        assertEquals("English", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.EN));
-        assertEquals("简体中文", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.ZH_HANS));
-        assertEquals("繁體中文", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.ZH_HANT));
-        assertEquals("日本語", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.JA));
-        assertEquals("한국어", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.KO));
-        assertEquals("Tiếng Việt", DevTools.appValue(DevTools.APP_LANG, Params.OV_FULL, Lang.VI));
+        assertEquals("Auto", DevTools.appValue(DevTools.APP_LANG, Lang.AUTO));
+        assertEquals("English", DevTools.appValue(DevTools.APP_LANG, Lang.EN));
+        assertEquals("简体中文", DevTools.appValue(DevTools.APP_LANG, Lang.ZH_HANS));
+        assertEquals("繁體中文", DevTools.appValue(DevTools.APP_LANG, Lang.ZH_HANT));
+        assertEquals("日本語", DevTools.appValue(DevTools.APP_LANG, Lang.JA));
+        assertEquals("한국어", DevTools.appValue(DevTools.APP_LANG, Lang.KO));
+        assertEquals("Tiếng Việt", DevTools.appValue(DevTools.APP_LANG, Lang.VI));
     }
 
     @Test void leftRightWalkThePanelStatesAndWrap() {
@@ -126,7 +121,7 @@ class DevToolsTest {
     @Test void theTransferRowSaysWhatGoesWhere() {
         assertEquals("Transfer to phone", DevTools.appLabel(DevTools.APP_TRANSFER));
         assertEquals("Send RAWs and JPEGs to Recipe Lab Studio over Wi-Fi", DevTools.appDetail(DevTools.APP_TRANSFER));
-        assertNull(DevTools.appValue(DevTools.APP_TRANSFER, Params.OV_FULL, Lang.AUTO), "a row that opens a page, not a value");
+        assertNull(DevTools.appValue(DevTools.APP_TRANSFER, Lang.AUTO), "a row that opens a page, not a value");
         assertEquals("TRANSFER TO PHONE", DevTools.transferTitle());
     }
 
@@ -134,7 +129,7 @@ class DevToolsTest {
         assertEquals(DevTools.APP_TRANSFER + 1, DevTools.APP_SYNC);
         assertEquals("Sync recipes", DevTools.appLabel(DevTools.APP_SYNC));
         assertEquals("Exchange custom recipes with Recipe Lab Studio over Wi-Fi", DevTools.appDetail(DevTools.APP_SYNC));
-        assertNull(DevTools.appValue(DevTools.APP_SYNC, Params.OV_FULL, Lang.AUTO), "a row that opens a page, not a value");
+        assertNull(DevTools.appValue(DevTools.APP_SYNC, Lang.AUTO), "a row that opens a page, not a value");
         assertEquals("SYNC RECIPES", DevTools.syncTitle());
         TransferState s = started();
         assertTrue(DevTools.transferPage(s, new Stats(), 0, true).instruction.contains("Import → Sync recipes"));

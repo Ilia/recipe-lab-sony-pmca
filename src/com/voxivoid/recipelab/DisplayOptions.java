@@ -1,37 +1,39 @@
 package com.voxivoid.recipelab;
 
 /**
- * Hold MENU → Display overlays: what may sit over the live image, one ON / OFF row each — the live histogram, the
- * rule-of-thirds grid, and three parts of the panel (the recipe counter, the Label pill, the key legend) — and Restore
- * defaults. Each is kept in the app's preferences under its own key ({@link #KEYS}), never in the camera's store.
+ * Hold MENU → Display: everything about what sits over the live image, in one submenu. First the panel itself — Full,
+ * No keys, Label or Hidden, the same cycle trash steps through, and like it not kept between openings — then one
+ * ON / OFF row each for the live histogram, the rule-of-thirds grid and the recipe counter, kept in the app's
+ * preferences under their own keys ({@link #KEYS}), never in the camera's store; and Restore defaults.
  *
- * A fresh install looks as before: histogram and grid off, the rest on. The panel's own Full / No keys / Label / Hidden
- * cycle (trash, Panel visibility) is not one of these and is never touched by them.
+ * The key legend and the Label pill have no rows of their own: the panel's No keys and Hidden states already take them
+ * away, and a second switch for each made a trash press that changed nothing on screen.
  *
- * The autofocus-point overlay is a separate feature: when it lands it adds its row here (an id before
- * {@link #DEFAULTS}, its key, default, label and detail). No android.* import may appear in this class (tools/test.sh).
+ * A fresh install looks as before: the full panel, histogram and grid off, the counter on. The autofocus-point overlay
+ * is a separate feature: when it lands it adds its row here (an id before {@link #DEFAULTS}, its key, default, label
+ * and detail). No android.* import may appear in this class (tools/test.sh).
  */
 final class DisplayOptions {
     private DisplayOptions() {}
 
-    /** the submenu's rows, in display order; every row but the last is an option, indexing {@link #KEYS} */
-    static final int HISTOGRAM = 0, GRID = 1, COUNTER = 2, MINI = 3, HINTS = 4, DEFAULTS = 5, ROWS = 6;
+    /** the submenu's rows, in display order; the rows between the panel and Restore defaults are ON / OFF options */
+    static final int PANEL = 0, HISTOGRAM = 1, GRID = 2, COUNTER = 3, DEFAULTS = 4, ROWS = 5;
 
-    /** each option's preference key */
-    static final String[] KEYS = { "display.histogram", "display.grid", "display.counter", "display.miniLabel", "display.hints" };
-    private static final boolean[] DEFAULT = { false, false, true, true, true };
+    /** each option's preference key, by row; the panel's state is the activity's, not a stored option */
+    static final String[] KEYS = { null, "display.histogram", "display.grid", "display.counter" };
+    private static final boolean[] DEFAULT = { false, false, false, true };
 
-    private static final String[] LABEL = { "display_histogram", "display_grid", "display_counter", "display_label", "display_hints", "display_defaults" };
-    private static final String[] DETAIL = { "display_histogram_detail", "display_grid_detail", "display_counter_detail",
-            "display_label_detail", "display_hints_detail", "display_defaults_detail" };
+    private static final String[] LABEL = { "menu_panel", "display_histogram", "display_grid", "display_counter", "display_defaults" };
+    private static final String[] DETAIL = { "menu_panel_detail", "display_histogram_detail", "display_grid_detail", "display_counter_detail",
+            "display_defaults_detail" };
 
     static String title() { return Lang.t("display_title"); }
 
-    /** what a fresh install shows, one entry per option */
+    /** what a fresh install shows, by row (the panel's entry unused) */
     static boolean[] defaults() { return DEFAULT.clone(); }
 
-    /** whether a row is an option with an ON / OFF value — not Restore defaults */
-    static boolean hasValue(int row) { return row >= 0 && row < KEYS.length; }
+    /** whether a row is an ON / OFF option — not the panel, not Restore defaults */
+    static boolean hasValue(int row) { return row > PANEL && row < DEFAULTS; }
 
     /** left (off) / right (on) on a row: sets it, the same value again changing nothing; false on a row with no value */
     static boolean set(boolean[] on, int row, boolean value) {
@@ -47,14 +49,17 @@ final class DisplayOptions {
         return true;
     }
 
-    /** Restore defaults: every option as on a fresh install, and nothing else */
+    /** Restore defaults: every option as on a fresh install (the caller puts the panel back to Full) */
     static void restore(boolean[] on) { System.arraycopy(DEFAULT, 0, on, 0, DEFAULT.length); }
 
     static String label(int row) { return Lang.t(LABEL[row]); }
     static String detail(int row) { return Lang.t(DETAIL[row]); }
 
-    /** the value at a row's right edge: on / off, or null for Restore defaults */
-    static String value(int row, boolean[] on) { return hasValue(row) ? Lang.t(on[row] ? "value_on" : "value_off") : null; }
+    /** the value at a row's right edge: the panel state, on / off, or null for Restore defaults */
+    static String value(int row, boolean[] on, int overlay) {
+        if (row == PANEL) return DevTools.panelLabel(overlay);
+        return hasValue(row) ? Lang.t(on[row] ? "value_on" : "value_off") : null;
+    }
 
     /**
      * Where the preview image sits in a {@code w × h} view: {left, top, right, bottom} of the largest rectangle of the
