@@ -104,6 +104,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private boolean transferSync;                               // the page was opened as Sync recipes: same link, its own words
     private Keys.Caps caps = Keys.Caps.UNKNOWN;                 // the shortcut keys this body reports (KeyProbe)
     private HintBar hints;
+    private SponsorLine sponsor;
     private LinearLayout chips;
     private final TextView[] chipLabel = new TextView[N], chipValue = new TextView[N];
     private final View[] chip = new View[N];
@@ -177,6 +178,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         count = (TextView) findViewById(R.id.count);
         meta = (TextView) findViewById(R.id.meta);
         hints = (HintBar) findViewById(R.id.hints);
+        sponsor = (SponsorLine) findViewById(R.id.sponsor);
         mini = (TextView) findViewById(R.id.mini);
         toast = (TextView) findViewById(R.id.toast);
         prompt = (PromptView) findViewById(R.id.prompt);
@@ -323,7 +325,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         Lang.use(Lang.resolve(langChoice, l == null ? null : l.getLanguage(), l == null ? null : l.getCountry()));
         Typeface tf = UiFont.of(this, Lang.current());
         UiFont.apply(findViewById(android.R.id.content), tf);
-        picker.setTypeface(tf); prompt.setTypeface(tf); menu.setTypeface(tf); hints.setTypeface(tf); keyboard.setTypeface(tf);
+        picker.setTypeface(tf); prompt.setTypeface(tf); menu.setTypeface(tf); hints.setTypeface(tf); keyboard.setTypeface(tf); sponsor.setTypeface(tf);
     }
 
     @Override
@@ -1281,10 +1283,12 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         String pos = library.position(recipe);
         String grp = Recipes.groupLabel(r.group).toUpperCase();
         if (menuOpen || nameOpen) {                              // a full-screen view is up: nothing under it is drawn, or redrawn on every key
-            panel.setVisibility(View.GONE); mini.setVisibility(View.GONE); picker.setVisibility(View.GONE);
+            panel.setVisibility(View.GONE); mini.setVisibility(View.GONE); picker.setVisibility(View.GONE); sponsor.setVisibility(View.GONE);
             return;
         }
         picker.setVisibility(overlay == OV_BROWSER ? View.VISIBLE : View.GONE);
+        sponsor.setText(DevTools.sponsorLine());                     // the README's ask, small, over the live view
+        sponsor.setVisibility(panelUp(overlay) ? View.VISIBLE : View.GONE);   // Full and No keys; Label and Hidden hide it
         if (overlay == OV_BROWSER) { panel.setVisibility(View.GONE); mini.setVisibility(View.GONE); picker.set(recipe, browserCol, browserGroup, favs, library, cardDir != null); return; }
         if (panelUp(overlay)) {
             panel.setVisibility(View.VISIBLE); mini.setVisibility(View.GONE);
