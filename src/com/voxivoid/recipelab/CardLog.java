@@ -79,6 +79,17 @@ final class CardLog {
      */
     static final class Perf {
         static final int PANEL = 0, BROWSER = 1, MENU = 2, NONE = -1;
+
+        /**
+         * The screen a key goes to, as PERF names it: the app menu (not Transfer to phone), the browser, or the panel
+         * while it is up. NONE for keys not timed: Transfer, a question, the name editor, the key logger or a run.
+         */
+        static int screen(boolean menu, boolean transferPage, boolean busy, boolean browser, boolean panelUp) {
+            if (menu) return transferPage ? NONE : MENU;
+            if (busy) return NONE;
+            if (browser) return BROWSER;
+            return panelUp ? PANEL : NONE;
+        }
         private static final String[] NAME = { "panel", "browser", "menu" };
         private final Timing[] timing = { new Timing(), new Timing(), new Timing() };
         private long at = 0;                                      // the event time of the oldest key not drawn yet; 0 for none

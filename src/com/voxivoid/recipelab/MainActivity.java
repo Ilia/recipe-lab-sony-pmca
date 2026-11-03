@@ -1489,10 +1489,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     // ------------------------------------------------------------ PERF: key to drawn, per screen
     /** the screen a key goes to, as PERF names it; NONE for those not timed (a question, the name editor, a run, Transfer) */
     private int timedScreen() {
-        if (menuOpen) return menuPage == PAGE_TRANSFER ? CardLog.Perf.NONE : CardLog.Perf.MENU;
-        if (running || logging || promptOpen || nameOpen) return CardLog.Perf.NONE;
-        if (overlay == OV_BROWSER) return CardLog.Perf.BROWSER;
-        return panelUp(overlay) ? CardLog.Perf.PANEL : CardLog.Perf.NONE;
+        return CardLog.Perf.screen(menuOpen, menuPage == PAGE_TRANSFER, running || logging || promptOpen || nameOpen,
+                overlay == OV_BROWSER, panelUp(overlay));
     }
 
     /** the key being dispatched is changing what is shown: its draw is timed, unless nothing turns out to need drawing */

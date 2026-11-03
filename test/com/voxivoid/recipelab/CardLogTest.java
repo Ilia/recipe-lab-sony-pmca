@@ -249,4 +249,13 @@ class CardLogTest {
         assertTrue(s.startsWith("java.lang.IllegalStateException: boom"), s);
         assertTrue(s.contains("CardLogTest"), s);
     }
+
+    @Test void keysAreTimedOnTheScreenTheyGoTo() {
+        assertEquals(CardLog.Perf.MENU, CardLog.Perf.screen(true, false, true, true, true), "the menu wins over what is under it");
+        assertEquals(CardLog.Perf.NONE, CardLog.Perf.screen(true, true, false, false, true), "Transfer to phone is not timed");
+        assertEquals(CardLog.Perf.NONE, CardLog.Perf.screen(false, false, true, true, true), "a question, the name editor, a run");
+        assertEquals(CardLog.Perf.BROWSER, CardLog.Perf.screen(false, false, false, true, false));
+        assertEquals(CardLog.Perf.PANEL, CardLog.Perf.screen(false, false, false, false, true));
+        assertEquals(CardLog.Perf.NONE, CardLog.Perf.screen(false, false, false, false, false), "Label and Hidden have no panel to time");
+    }
 }
