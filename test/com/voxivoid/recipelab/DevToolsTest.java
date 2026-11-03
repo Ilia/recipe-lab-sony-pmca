@@ -42,7 +42,8 @@ class DevToolsTest {
         Set<Integer> visited = new HashSet<Integer>();
         int r = DevTools.ROW_SNAPSHOT;
         for (int i = 0; i < DevTools.ROWS; i++) { visited.add(r); r = DevTools.nextRow(r, +1); }
-        assertEquals(new HashSet<Integer>(Arrays.asList(DevTools.ROW_SNAPSHOT, DevTools.ROW_LOCKS, DevTools.ROW_SAMPLES, DevTools.ROW_SETTLE, DevTools.ROW_KEYS)), visited);
+        assertEquals(new HashSet<Integer>(Arrays.asList(DevTools.ROW_SNAPSHOT, DevTools.ROW_LOCKS, DevTools.ROW_SAMPLES, DevTools.ROW_SETTLE, DevTools.ROW_KEYS,
+                DevTools.ROW_CUSTOM_KEY, DevTools.ROW_RESUME)), visited);
         assertEquals(DevTools.ROW_SNAPSHOT, r, "and comes back to the first row");
     }
 
@@ -117,9 +118,41 @@ class DevToolsTest {
 
     @Test void theSettleRowShowsItsDelayAsAValue() {
         assertEquals("Settle delay", DevTools.rowLabel(DevTools.ROW_SETTLE, false, 1));
-        assertEquals("1.2 s", DevTools.rowValue(DevTools.ROW_SETTLE, 1));
-        assertEquals("0.8 s", DevTools.rowValue(DevTools.ROW_SETTLE, 0));
-        for (int r = 0; r < DevTools.ROWS; r++) if (r != DevTools.ROW_SETTLE) assertNull(DevTools.rowValue(r, 1), "row " + r);
+        assertEquals("1.2 s", DevTools.rowValue(DevTools.ROW_SETTLE, 1, false));
+        assertEquals("0.8 s", DevTools.rowValue(DevTools.ROW_SETTLE, 0, true));
+        for (int r = 0; r < DevTools.ROWS; r++)
+            if (r != DevTools.ROW_SETTLE && r != DevTools.ROW_RESUME) assertNull(DevTools.rowValue(r, 1, true), "row " + r);
+    }
+
+    // ---- experiments: custom key, power-on resume
+    @Test void theExperimentRowsSayTheyAreExperiments() {
+        assertEquals("Custom key probe", DevTools.rowLabel(DevTools.ROW_CUSTOM_KEY, false, 0));
+        assertEquals("Back here at power-on", DevTools.rowLabel(DevTools.ROW_RESUME, false, 0));
+        assertTrue(DevTools.rowDetail(DevTools.ROW_CUSTOM_KEY, false).startsWith("Experiment"));
+        assertTrue(DevTools.rowDetail(DevTools.ROW_RESUME, false).startsWith("Experiment"));
+    }
+
+    @Test void theResumeRowShowsOnOrOff() {
+        assertEquals("on", DevTools.rowValue(DevTools.ROW_RESUME, 1, true));
+        assertEquals("off", DevTools.rowValue(DevTools.ROW_RESUME, 1, false));
+    }
+
+    @Test void resumeAsksForThePowerOnEventsOnlyWhenOn() {
+        assertArrayEquals(new String[] { "KEY_POWER_SLIDE_PON", "KEY_POWER_APO" }, DevTools.resumeKeys(true));
+        assertEquals(0, DevTools.resumeKeys(false).length, "off sends an empty list, which takes the request back");
+    }
+
+    @Test void theCustomKeyProbeTriesThreeOrdersPackageFirst() {
+        String[][] tries = DevTools.customKeyArgs("pkg", "cls", "label");
+        assertEquals(3, tries.length);
+        assertArrayEquals(new String[] { "pkg", "cls", "label" }, tries[0], "the guess: package, activity, label");
+        assertArrayEquals(new String[] { "pkg", "label", "cls" }, tries[1]);
+        assertArrayEquals(new String[] { "label", "pkg", "cls" }, tries[2]);
+    }
+
+    @Test void theCustomKeyResultNamesWhereToLook() {
+        String msg = Lang.t("dev_custom_key_result", "true #1");
+        assertTrue(msg.contains("true #1") && msg.contains("LOG.TXT"), msg);
     }
 
     // ---- Transfer to phone

@@ -31,13 +31,14 @@ final class DevTools {
     static final int IC_BROWSE = 0, IC_NEW = 1, IC_PANEL = 2, IC_LANGUAGE = 3, IC_RESET = 4, IC_ABOUT = 5, IC_DEV = 6,
             IC_SNAPSHOT = 7, IC_LOCK = 8, IC_SAMPLES = 9, IC_CLOCK = 10, IC_KEYS = 11, IC_REPORT = 12, IC_TRANSFER = 13, IC_SYNC = 14;
     private static final int[] APP_ICONS = { IC_BROWSE, IC_NEW, IC_TRANSFER, IC_SYNC, IC_PANEL, IC_LANGUAGE, IC_RESET, IC_REPORT, IC_ABOUT, IC_DEV };
-    private static final int[] DEV_ICONS = { IC_SNAPSHOT, IC_LOCK, IC_SAMPLES, IC_CLOCK, IC_KEYS };
+    private static final int[] DEV_ICONS = { IC_SNAPSHOT, IC_LOCK, IC_SAMPLES, IC_CLOCK, IC_KEYS, IC_NEW, IC_RESET };
 
     /** the icon of each row of a level, in row order */
     static int[] icons(int level) { return (level == LEVEL_APP ? APP_ICONS : DEV_ICONS).clone(); }
 
     /** developer menu rows, in display order */
-    static final int ROW_SNAPSHOT = 0, ROW_LOCKS = 1, ROW_SAMPLES = 2, ROW_SETTLE = 3, ROW_KEYS = 4, ROWS = 5;
+    static final int ROW_SNAPSHOT = 0, ROW_LOCKS = 1, ROW_SAMPLES = 2, ROW_SETTLE = 3, ROW_KEYS = 4, ROW_CUSTOM_KEY = 5, ROW_RESUME = 6,
+            ROWS = 7;
 
     /**
      * Settle delays to pick from, in ms: how long the preview pipeline gets after a recipe is applied before the
@@ -286,6 +287,8 @@ final class DevTools {
             case ROW_SAMPLES: return Lang.t("dev_shoot_samples", Recipes.ALL.length);
             case ROW_SETTLE: return Lang.t("dev_settle_delay");
             case ROW_KEYS: return Lang.t("dev_key_logger");
+            case ROW_CUSTOM_KEY: return Lang.t("dev_custom_key");
+            case ROW_RESUME: return Lang.t("dev_resume");
             default: return "?" + row;
         }
     }
@@ -298,12 +301,37 @@ final class DevTools {
             case ROW_SAMPLES: return Lang.t("dev_samples_detail");
             case ROW_SETTLE: return Lang.t("dev_settle_detail");
             case ROW_KEYS: return Lang.t("dev_keys_detail");
+            case ROW_CUSTOM_KEY: return Lang.t("dev_custom_key_detail");
+            case ROW_RESUME: return Lang.t("dev_resume_detail");
             default: return "";
         }
     }
 
     /** the value a developer menu row shows at its right edge, which left / right change in place; null for none */
-    static String rowValue(int row, int settle) { return row == ROW_SETTLE ? settleLabel(settle) : null; }
+    static String rowValue(int row, int settle, boolean resume) {
+        if (row == ROW_SETTLE) return settleLabel(settle);
+        if (row == ROW_RESUME) return Lang.t(resume ? "value_on" : "value_off");
+        return null;
+    }
+
+    // ------------------------------------------------------------ experiments: an app on a custom key, back to the app at power-on
+    /**
+     * The orders the custom-key probe hands its three strings to Sony's {@code DAConnectionManager.registerCustomKeyInfo},
+     * first one the camera accepts wins. Nothing documents the method and nothing open calls it, so the order is a guess:
+     * package, activity and label, then the label moved forward.
+     */
+    static String[][] customKeyArgs(String pkg, String cls, String label) {
+        return new String[][] { { pkg, cls, label }, { pkg, label, cls }, { label, pkg, cls } };
+    }
+
+    /**
+     * The {@code resume_key} list the app hands the camera with its AppInfoReceive broadcast: the power events after which
+     * the camera brings the running app back instead of the shooting screen. The names are the ones Sony's own apps use
+     * (their {@code AppInfo}): the power switch turned on, and waking from auto power-off. Empty takes them back.
+     */
+    static String[] resumeKeys(boolean on) {
+        return on ? new String[] { "KEY_POWER_SLIDE_PON", "KEY_POWER_APO" } : new String[0];
+    }
 
     // ------------------------------------------------------------ the settle delay
     /** a stored delay index brought back into the table */

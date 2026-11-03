@@ -1,6 +1,8 @@
 package com.voxivoid.recipelab;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.hardware.Camera;
@@ -25,7 +27,9 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -89,6 +93,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private int menuLevel = DevTools.LEVEL_APP, menuPage = PAGE_ROWS;   // which menu, and whether it shows rows or a read-only page
     private int menuSel = 0, settleIdx = DevTools.SETTLE_DEFAULT;   // menu: highlighted row · developer menu: chosen settle delay
     private int langChoice = Lang.AUTO;                         // the Language row: Lang.AUTO or a language
+    private boolean resumeAtPowerOn = false;                    // developer menu experiment: the camera brings the app back at power-on
     private static final int PAGE_ROWS = 0, PAGE_ABOUT = 1, PAGE_TRANSFER = 2;
     private TransferMode transfer;                              // Transfer to phone, while its page is open (null otherwise)
     private boolean transferSync;                               // the page was opened as Sync recipes: same link, its own words
@@ -148,6 +153,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         favStored = prefs.getString("favourites", "");
         favs = Favourites.decode(favStored, library);
         settleIdx = DevTools.clampSettle(prefs.getInt("settle", DevTools.SETTLE_DEFAULT));
+        resumeAtPowerOn = prefs.getBoolean("resumeAtPowerOn", false);
         langChoice = Lang.parseChoice(prefs.getString("language", null));
         panel = findViewById(R.id.panel);
         picker = (PickerView) findViewById(R.id.picker);
@@ -335,6 +341,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             prefs.edit().putBoolean("keysNoticeSeen", true).commit();
         }
         if (Params.asksPictureProfileOff(cur)) openPrompt(P_PP, Params.PP_DEFAULT);   // every time: no recipe shows while it runs (#90)
+        if (resumeAtPowerOn) notifyResume();                    // off: nothing is sent, as before the experiment
     }
 
     @Override
@@ -674,7 +681,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             for (int i = 0; i < n; i++) {
                 labels[i] = app ? DevTools.appLabel(i) : DevTools.rowLabel(i, snapshotTaken, settleIdx);
                 details[i] = app ? DevTools.appDetail(i) : DevTools.rowDetail(i, snapshotTaken);
-                values[i] = app ? DevTools.appValue(i, overlay, langChoice) : DevTools.rowValue(i, settleIdx);
+                values[i] = app ? DevTools.appValue(i, overlay, langChoice) : DevTools.rowValue(i, settleIdx, resumeAtPowerOn);
             }
             if (app) faces[DevTools.APP_LANG] = UiFont.of(this, Lang.choiceScript(langChoice));   // 简体中文 in its own font, whatever the menu's
             boolean value = values[menuSel] != null;
@@ -721,6 +728,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             case DevTools.ROW_SAMPLES: closeMenu(); startRun(); break;
             case DevTools.ROW_SETTLE: stepMenuValue(+1); break;
             case DevTools.ROW_KEYS: closeMenu(); startLogger(); break;
+            case DevTools.ROW_CUSTOM_KEY: closeMenu(); probeCustomKey(); break;
+            case DevTools.ROW_RESUME: stepMenuValue(+1); break;
         }
     }
 
@@ -734,6 +743,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         } else if (menuLevel == DevTools.LEVEL_DEV && menuSel == DevTools.ROW_SETTLE) {
             settleIdx = DevTools.nextSettle(settleIdx, dir);
             prefs.edit().putInt("settle", settleIdx).commit();
+        } else if (menuLevel == DevTools.LEVEL_DEV && menuSel == DevTools.ROW_RESUME) {
+            resumeAtPowerOn = !resumeAtPowerOn;                  // two values: either direction flips it
+            prefs.edit().putBoolean("resumeAtPowerOn", resumeAtPowerOn).commit();
+            notifyResume();                                      // off sends the empty list, which takes the request back
         } else return false;
         renderMenu(); render();
         return true;
@@ -795,9 +808,66 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private boolean transferKey(int sc, int repeat) {
         if (repeat > 0 || (sc != K_MENU && sc != K_SK1)) return true;
         swallowMenuUp = true; stopTransfer(); menuPage = PAGE_ROWS;
+        if (resumeAtPowerOn) notifyResume();                    // the transfer page sent its own app info, without the power-on keys
         reloadCustoms();                                         // the phone may have sent recipes
         renderMenu();
         return true;
+    }
+
+    // ------------------------------------------------------------ experiments (developer menu): an app on a custom key, back at power-on
+    /**
+     * Offers Recipe Lab to the camera's custom keys through Sony's {@code DAConnectionManager.registerCustomKeyInfo}, an
+     * undocumented method nothing open calls. Each argument order {@link DevTools#customKeyArgs} lists is tried until one
+     * returns true; every call, and the Fn assignment before and after, goes to LOG.TXT. Whether the app then shows up in
+     * MENU → Custom Key Settings is the real answer, and only the camera can give it.
+     */
+    private void probeCustomKey() {
+        String label;
+        try { label = String.valueOf(getApplicationInfo().loadLabel(getPackageManager())); } catch (Throwable t) { label = "Recipe Lab"; }
+        log(CardLog.INFO, "custom key: launcher assign before " + launcherAssign());
+        String result;
+        try { result = registerCustomKey(DevTools.customKeyArgs(getPackageName(), getComponentName().getClassName(), label)); }
+        catch (InvocationTargetException t) { result = String.valueOf(t.getCause()); }
+        catch (Throwable t) { result = String.valueOf(t); }
+        log(CardLog.INFO, "custom key: result " + result + ", launcher assign after " + launcherAssign());
+        showToast(Lang.t("dev_custom_key_result", result), 8000);
+    }
+
+    /** each argument order in turn until the camera returns true: "true #n", else "false" */
+    private String registerCustomKey(String[][] tries) throws Exception {
+        Class<?> type = Class.forName("android.app.DAConnectionManager");
+        Object manager = type.getConstructor(Context.class).newInstance(this);
+        Method register = type.getMethod("registerCustomKeyInfo", String.class, String.class, String.class);
+        for (int i = 0; i < tries.length; i++) {
+            Object r = register.invoke(manager, (Object[]) tries[i]);
+            log(CardLog.INFO, "custom key: registerCustomKeyInfo" + Arrays.toString(tries[i]) + " = " + r);
+            if (Boolean.TRUE.equals(r)) return "true #" + (i + 1);
+        }
+        return "false";
+    }
+
+    /** Sony's Fn-menu assignment, for the log around the probe; what it holds is not known either */
+    private static String launcherAssign() {
+        try {
+            return Arrays.toString((int[]) Class.forName("com.sony.scalar.sysutil.didep.Settings").getMethod("getCustomLauncherAssign").invoke(null));
+        } catch (Throwable t) { return "unavailable: " + t; }
+    }
+
+    /**
+     * Tells the camera which power events bring this app back ({@link DevTools#resumeKeys}), in the AppInfoReceive
+     * broadcast Sony's own apps send from onResume. Untested: whether the A6000 then returns to Recipe Lab at power-on.
+     */
+    private void notifyResume() {
+        try {
+            Intent i = new Intent("com.android.server.DAConnectionManagerService.AppInfoReceive");
+            i.putExtra("package_name", getPackageName());
+            i.putExtra("class_name", getComponentName().getClassName());
+            i.putExtra("large_category", "CATEGORY_REC");
+            i.putExtra("small_category", "STILL");
+            i.putExtra("resume_key", DevTools.resumeKeys(resumeAtPowerOn));
+            sendBroadcast(i);
+            log(CardLog.INFO, "resume at power-on: " + Arrays.toString(DevTools.resumeKeys(resumeAtPowerOn)));
+        } catch (Throwable t) { log(CardLog.INFO, "resume at power-on: " + t); }
     }
 
     // ------------------------------------------------------------ key logger (developer menu)

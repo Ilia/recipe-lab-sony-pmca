@@ -140,6 +140,8 @@ The **developer menu** holds the tools that are not part of using the app:
 | **Shoot samples — 77 recipes** | the sample run below |
 | **Settle delay** | a value — the delay the sample run waits after applying a recipe; left / right step through 0.8 / 1.2 / 2.0 / 3.0 / 5.0 s in place (centre steps forward), kept in the app's preferences |
 | **Key logger** | every key event on screen, newest first, and appended to `RECIPLAB/LOGS/KEYS.TXT` on the card (`keys.txt` in `getFilesDir()` without one): scan code, down / up, repeat count, Sony's logic code; the header is the model, the platform and what the probe found. Nothing else happens while it runs; **hold MENU** leaves |
+| **Custom key probe** | experiment, unverified: offers Recipe Lab to the camera's custom keys through Sony's undocumented `android.app.DAConnectionManager.registerCustomKeyInfo(String, String, String)` (by reflection). Nothing open calls it, so it tries three argument orders (package / activity / label first) until one returns true; each call and `Settings.getCustomLauncherAssign()` before and after go to LOG.TXT, the result to a toast. The real answer is whether Recipe Lab then shows up in MENU → Custom Key Settings |
+| **Back here at power-on** | experiment, unverified, off by default: when on, every opening sends the `AppInfoReceive` broadcast with `resume_key` = `KEY_POWER_SLIDE_PON`, `KEY_POWER_APO` (the names Sony's own apps use), asking the camera to bring the app back when it is switched on or wakes; off sends an empty list. Leaving with MENU ends the app, so there is nothing to bring back |
 
 New functions go in as app menu rows, not on new keys — see [Keys on every body](#keys-on-every-body).
 
