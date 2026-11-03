@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- the root says when it has drawn: the PERF lines in LOG.TXT time keys to it (TimedFrame) -->
+<com.voxivoid.recipelab.TimedFrame xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent">
 
@@ -211,4 +213,4 @@
         android:textColor="#FFFFFFFF"
         android:background="@drawable/toast_bg"
         android:visibility="gone" />
-</FrameLayout>
+</com.voxivoid.recipelab.TimedFrame>
