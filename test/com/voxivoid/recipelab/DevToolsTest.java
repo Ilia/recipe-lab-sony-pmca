@@ -342,4 +342,11 @@ class DevToolsTest {
         }
         assertEquals(Recipes.ALL.length, names.size());
     }
+
+    @Test void theAppOpensOnThePanelItWasLeftOn() {
+        for (int p : DevTools.PANELS) assertEquals(p, DevTools.clampPanel(p), "panel " + p);
+        assertEquals(Params.OV_FULL, DevTools.clampPanel(Params.OV_BROWSER), "never straight into the brand list");
+        assertEquals(Params.OV_FULL, DevTools.clampPanel(-1));
+        assertEquals(Params.OV_FULL, DevTools.clampPanel(99), "a value from a later build, say");
+    }
 }

@@ -149,8 +149,9 @@ New functions go in as app menu rows, not on new keys — see [Keys on every bod
 image, in one place. MENU goes back to the app menu on Display, a second MENU closes it.
 
 **Panel visibility**, the first row, is a value — *Full* / *No keys* / *Label* / *Hidden* (`DevTools.PANELS`) — that
-left / right step through in place, wrapping; centre steps forward. The same states trash cycles, and like them it is
-not kept between openings: every opening starts on Full. *No keys* (`OV_QUIET`) is the full panel, chips and all
+left / right step through in place, wrapping; centre steps forward. The same states trash cycles. The app opens on
+the one it was left on: `onPause` stores it under `panel` (left in the brand list, the panel closing it would return
+to) and `onCreate` reads it back through `DevTools.clampPanel`, so a stray value opens on Full. *No keys* (`OV_QUIET`) is the full panel, chips and all
 (`Params.panelUp`), without the `HintBar` legend; closing the browser returns to it if it was left on it.
 
 The next rows are one element each: left sets it OFF, right ON (setting the same value again changes nothing, nothing
@@ -726,7 +727,7 @@ against a SHA-256 pinned in the script (`JUNIT_JAR=<path>` points it at a copy w
 | `ParamsChipsTest` | chip visibility, stepping (wrap vs clamp, the effect → SUB / quality side effects), LEFT/RIGHT and UP/DOWN landing spots, chip text |
 | `ParamsHudTest` | the meta line (warnings only: RAW under an effect, no live preview — the values are on the chips), the minimal pill, the quality prompt |
 | `ParamsToolsTest` | the snapshot tool's id list — including that `res/raw/ids.txt` is well formed and lists every slot the app writes — and its diff lines |
-| `DisplayOptionsTest` | Display: the panel row first and unsaved, the defaults, one key per element, left off / right on / centre toggles, Restore defaults (options and panel), the submenu as its own level, every row named in every language, the grid's rectangle |
+| `DisplayOptionsTest` | Display: the panel row first, the defaults, one key per element, left off / right on / centre toggles, Restore defaults (options and panel), the submenu as its own level, every row named in every language, the grid's rectangle |
 | `HistogramMathTest` | the histogram's bars: unsigned bins, dark to bright, means of uneven shares, a narrow spike lowered not lost, no overflow, nothing drawn for input that is not a histogram, at most eight frames a second |
 | `DevToolsTest` | the app menu and developer menu rows, About, the Transfer to phone page (chip, card, problem and instruction lines, footer, in Chinese too) and the key logger's lines, settle delays, the sample run's progress / finish lines, and its manifest — a parsable line per recipe, in run order |
 | `KeysTest` | the press / hold gesture, the trash-hold guard, and that the legend never names a key the body lacks — every function on a universal key, Fn only when reported, the order pick · browse · save · fav · menu · hide · exit, the reset hold never hinted |

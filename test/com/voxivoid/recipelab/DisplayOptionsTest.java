@@ -25,7 +25,7 @@ class DisplayOptionsTest {
     }
 
     @Test void eachOptionHasItsOwnPreferenceKeyAndThePanelNone() {
-        assertNull(DisplayOptions.KEYS[DisplayOptions.PANEL], "the panel state is not kept between openings, as before");
+        assertNull(DisplayOptions.KEYS[DisplayOptions.PANEL], "the panel is a state the activity keeps, not an ON / OFF option");
         assertEquals(Arrays.asList(null, "display.histogram", "display.grid", "display.counter"), Arrays.asList(DisplayOptions.KEYS));
     }
 

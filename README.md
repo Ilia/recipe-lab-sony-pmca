@@ -285,8 +285,8 @@ Open **Recipe Lab** from the Application List. The live view shows the look. The
 - **Sync recipes** opens the same Wi-Fi link for custom recipes: [Recipe Lab Studio](https://recipelab.io/studio) copies the ones the phone lacks
   and sends the ones the card lacks. Leave the page with MENU and they are under Custom.
 - **Display** holds everything about what sits over the image: the panel (Full, No keys, Label or Hidden, the
-  same states trash steps through), a live histogram and a rule-of-thirds grid, and the recipe counter. Left and right
-  change a row. The histogram and grid are not yet tried on a camera.
+  same states trash steps through, and the app opens on the one you left it on), a live histogram and a rule-of-thirds
+  grid, and the recipe counter. Left and right change a row. The histogram and grid are not yet tried on a camera.
 - Languages: *Auto*, English, 简体中文, 繁體中文, 日本語, 한국어, Tiếng Việt.
 
 ## Custom recipes

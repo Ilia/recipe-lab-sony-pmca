@@ -129,6 +129,12 @@ final class DevTools {
         return PANELS[(pos + PANELS.length + dir) % PANELS.length];
     }
 
+    /** a stored panel state, as the app opens on it: one of {@link #PANELS}, anything else (the browser, a stray value) the full panel */
+    static int clampPanel(int overlay) {
+        for (int p : PANELS) if (p == overlay) return p;
+        return Params.OV_FULL;
+    }
+
     /**
      * The About page: {name, value}. The version comes from the installed package at runtime, never from here. The sponsor
      * ask goes under it ({@link #aboutFooter}).

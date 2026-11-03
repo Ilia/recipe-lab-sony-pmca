@@ -2,7 +2,7 @@ package com.voxivoid.recipelab;
 
 /**
  * Hold MENU → Display: everything about what sits over the live image, in one submenu. First the panel itself — Full,
- * No keys, Label or Hidden, the same cycle trash steps through, and like it not kept between openings — then one
+ * No keys, Label or Hidden, the same cycle trash steps through, kept by the activity under {@code panel} — then one
  * ON / OFF row each for the live histogram, the rule-of-thirds grid and the recipe counter, kept in the app's
  * preferences under their own keys ({@link #KEYS}), never in the camera's store; and Restore defaults.
  *
@@ -19,7 +19,7 @@ final class DisplayOptions {
     /** the submenu's rows, in display order; the rows between the panel and Restore defaults are ON / OFF options */
     static final int PANEL = 0, HISTOGRAM = 1, GRID = 2, COUNTER = 3, DEFAULTS = 4, ROWS = 5;
 
-    /** each option's preference key, by row; the panel's state is the activity's, not a stored option */
+    /** each option's preference key, by row; the panel is a state, not an ON / OFF option, and the activity keeps it */
     static final String[] KEYS = { null, "display.histogram", "display.grid", "display.counter" };
     private static final boolean[] DEFAULT = { false, false, false, true };
 

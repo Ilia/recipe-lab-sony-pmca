@@ -155,6 +155,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         favStored = prefs.getString("favourites", "");
         favs = Favourites.decode(favStored, library);
         settleIdx = DevTools.clampSettle(prefs.getInt("settle", DevTools.SETTLE_DEFAULT));
+        overlay = DevTools.clampPanel(prefs.getInt("panel", OV_FULL));   // the panel as it was left
         langChoice = Lang.parseChoice(prefs.getString("language", null));
         for (int i = 0; i < DisplayOptions.KEYS.length; i++) if (DisplayOptions.KEYS[i] != null) display[i] = prefs.getBoolean(DisplayOptions.KEYS[i], display[i]);
         panel = findViewById(R.id.panel);
@@ -355,6 +356,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     @Override
     protected void onPause() {
         super.onPause();
+        prefs.edit().putInt("panel", overlay == OV_BROWSER ? fullPanel() : overlay).commit();   // the browser: the panel closing it returns to
         resumed = false; previewOn = false;
         handler.removeCallbacks(overlays);
         applyOverlays();                                         // the histogram's listener comes off before the camera is released
