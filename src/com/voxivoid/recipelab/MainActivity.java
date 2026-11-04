@@ -1,6 +1,9 @@
 package com.voxivoid.recipelab;
 
 import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ResolveInfo;
 import android.content.SharedPreferences;
 import android.graphics.Typeface;
 import android.hardware.Camera;
@@ -25,6 +28,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -89,6 +93,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private int menuLevel = DevTools.LEVEL_APP, menuPage = PAGE_ROWS;   // which menu, and whether it shows rows or a read-only page
     private int menuSel = 0, settleIdx = DevTools.SETTLE_DEFAULT;   // menu: highlighted row · developer menu: chosen settle delay
     private int langChoice = Lang.AUTO;                         // the Language row: Lang.AUTO or a language
+    private boolean keyOn = false;                              // Open with a key: the camera's Download Appli. key function opens the app
     private static final int PAGE_ROWS = 0, PAGE_ABOUT = 1, PAGE_TRANSFER = 2;
     private TransferMode transfer;                              // Transfer to phone, while its page is open (null otherwise)
     private boolean transferSync;                               // the page was opened as Sync recipes: same link, its own words
@@ -145,6 +150,25 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     // the shareable log on the card (CardLog): the last preview line written, so a failure repeated per key press is logged once
     private String lastPreviewLog = "";
     private String lastMode;                                   // the mode dial as last logged: a turn with the app open is logged once
+    // the autofocus boxes on a half-press (FocusOverlayModel): optical focus — nothing to do with `focus`, a chip's
+    private FocusOverlayView afOverlay;
+    private final FocusOverlayModel af = new FocusOverlayModel();
+    private int afPreviewW = 0, afPreviewH = 0;                // the live image's size, where the boxes are placed in
+    private String afNote = "";                                // the last AF problem logged: each said once, not per event
+    private boolean afPlaced = false;                          // this session's first drawn box is logged, for alignment checks
+    private int afTraced = 0;                                  // AF events logged this session: the first AF_TRACE, to see where boxes stop
+    private static final int AF_TRACE = 12;
+    /** Sony's AF callbacks, on Sony's thread: posted to the UI thread, where the model drops anything stale */
+    private final FocusAreaBridge.Sink afSink = new FocusAreaBridge.Sink() {
+        public void areas(final int gen, final FocusOverlayModel.Area[] a) { handler.post(new Runnable() { public void run() {
+            afTrace("areas " + FocusOverlayModel.describeAreas(a)); af.areas(gen, a); } }); }
+        public void started(final int gen) { handler.post(new Runnable() { public void run() { afTrace("start"); if (af.started(gen)) showAf(); } }); }
+        public void done(final int gen, final int status, final int[] ids) { handler.post(new Runnable() { public void run() {
+            boolean taken = af.done(gen, status, ids);
+            afTrace("done status " + status + " ids " + java.util.Arrays.toString(ids) + (taken ? " -> " + af.shown().size() + " area(s)" : " dropped (stale or S1 up)"));
+            if (taken) showAf(); } }); }
+        public void failed(final String what) { handler.post(new Runnable() { public void run() { logAf("callback failed: " + what); } }); }
+    };
 
     @Override
     protected void onCreate(Bundle b) {
@@ -158,6 +182,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         overlay = DevTools.clampPanel(prefs.getInt("panel", OV_FULL));   // the panel as it was left
         langChoice = Lang.parseChoice(prefs.getString("language", null));
         for (int i = 0; i < DisplayOptions.KEYS.length; i++) if (DisplayOptions.KEYS[i] != null) display[i] = prefs.getBoolean(DisplayOptions.KEYS[i], display[i]);
+        keyOn = prefs.getBoolean("openWithKey", false);
         panel = findViewById(R.id.panel);
         picker = (PickerView) findViewById(R.id.picker);
         chipScroll = (HorizontalScrollView) findViewById(R.id.chipscroll);
@@ -182,6 +207,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         prompt = (PromptView) findViewById(R.id.prompt);
         menu = (MenuView) findViewById(R.id.menu);
         keyboard = (KeyboardView) findViewById(R.id.keyboard);
+        afOverlay = (FocusOverlayView) findViewById(R.id.af);
         chips = (LinearLayout) findViewById(R.id.chips);
         buildChips();
         actionsRow = (LinearLayout) findViewById(R.id.actions);
@@ -343,6 +369,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             holder.addCallback(this);
             previewOk = true;
         } catch (Throwable t) { previewOk = false; previewErr = String.valueOf(t); logPreview("camera did not open: " + previewErr); }
+        if (camera != null) openAf();
         logOpen();
         showRecipe();                                          // with the edits last applied, when the camera still holds them
         applyPreview(); render();
@@ -351,6 +378,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             prefs.edit().putBoolean("keysNoticeSeen", true).commit();
         }
         if (Params.asksPictureProfileOff(cur)) openPrompt(P_PP, Params.PP_DEFAULT);   // every time: no recipe shows while it runs (#90)
+        if (keyOn) registerKey(getPackageName(), getComponentName().getClassName());   // again each time: another app may have taken it
     }
 
     @Override
@@ -370,10 +398,12 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         handler.removeCallbacks(enterHold); handler.removeCallbacks(menuHold); handler.removeCallbacks(trashHold);
         enter.reset(); menuKeyHold.reset(); trash.reset();
         holder.removeCallback(this);
+        af.close(); showAf();                                    // before the camera goes: its late AF callbacks are dropped
         // leave the live parameters equal to what is STORED (not to the launch snapshot): the camera writes some live
         // values (exposure bias, WB fine-tune) straight back into the settings store, which would undo a fresh store
         try { if (camera != null) { load(); System.arraycopy(cur, 0, edit, 0, N); applyPreview(); } } catch (Throwable t) {}
         try { if (camera != null) camera.stopPreview(); } catch (Throwable t) {}
+        FocusAreaBridge.unregister(cameraEx);
         try { if (cameraEx != null) cameraEx.getClass().getMethod("release").invoke(cameraEx); } catch (Throwable t) {}
         cameraEx = null; camera = null;
     }
@@ -411,6 +441,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     private void stageRecipe() {
+        clearAf();                                               // a box from the last recipe never shows over this one
         Recipes.Recipe r = library.get(recipe);
         Params.stage(r, edit);
         edit[R_QUAL] = recipeQuality(r);
@@ -549,7 +580,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private void forgetAppliedEdit() { prefs.edit().remove("appliedRecipe").remove("appliedRows").commit(); }
 
     // ------------------------------------------------------------ the questions: quality, reset, and the custom recipe ones
-    private void openPrompt(int kind, int sel) { promptOpen = true; promptKind = kind; promptSel = sel; renderPrompt(); }
+    private void openPrompt(int kind, int sel) { clearAf(); promptOpen = true; promptKind = kind; promptSel = sel; renderPrompt(); }
 
     /** hold trash, or Reset settings in the app menu: ask before the factory look replaces the current one */
     private void askReset() { openPrompt(P_RESET, DevTools.RESET_DEFAULT); }
@@ -683,6 +714,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     // ------------------------------------------------------------ app menu (MENU hold), developer menu under it, and the sample run
     private void openMenu(int level) {
         if (running) return;
+        clearAf();
         menuOpen = true; menuLevel = level; menuPage = PAGE_ROWS; menuSel = 0; renderMenu();
     }
 
@@ -700,7 +732,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             for (int i = 0; i < n; i++) {
                 labels[i] = app ? DevTools.appLabel(i) : disp ? DisplayOptions.label(i) : DevTools.rowLabel(i, snapshotTaken, settleIdx);
                 details[i] = app ? DevTools.appDetail(i) : disp ? DisplayOptions.detail(i) : DevTools.rowDetail(i, snapshotTaken);
-                values[i] = app ? DevTools.appValue(i, langChoice) : disp ? DisplayOptions.value(i, display, overlay) : DevTools.rowValue(i, settleIdx);
+                values[i] = app ? DevTools.appValue(i, langChoice, keyOn) : disp ? DisplayOptions.value(i, display, overlay) : DevTools.rowValue(i, settleIdx);
             }
             if (app) faces[DevTools.APP_LANG] = UiFont.of(this, Lang.choiceScript(langChoice));   // 简体中文 in its own font, whatever the menu's
             boolean value = values[menuSel] != null;
@@ -739,7 +771,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
                 case DevTools.APP_NEW: closeMenu(); openName(NAME_NEW); break;   // the camera's current settings, kept as a recipe
                 case DevTools.APP_TRANSFER: openTransfer(false); break;
                 case DevTools.APP_SYNC: openTransfer(true); break;
-                case DevTools.APP_LANG: stepMenuValue(+1); break;
+                case DevTools.APP_LANG: case DevTools.APP_KEY: stepMenuValue(+1); break;
                 case DevTools.APP_DISPLAY: menuLevel = DevTools.LEVEL_DISPLAY; menuSel = 0; renderMenu(); break;
                 case DevTools.APP_RESET: closeMenu(); askReset(); break;
                 case DevTools.APP_REPORT: closeMenu(); saveReport(); break;
@@ -765,6 +797,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             langChoice = Lang.nextChoice(langChoice, dir);
             prefs.edit().putString("language", Lang.choiceCode(langChoice)).commit();
             applyLanguage();                                     // the menu redraws in it straight away, the panel under it too
+        } else if (menuLevel == DevTools.LEVEL_APP && menuSel == DevTools.APP_KEY) {
+            keyOn = !keyOn;                                      // two values: either direction flips it
+            prefs.edit().putBoolean("openWithKey", keyOn).commit();
+            showToast(keyOn ? keyResult(registerKey(getPackageName(), getComponentName().getClassName()), "key_on_done", "key_on_failed") : keyResult(restoreStore(), "key_off_done", "key_off_failed"), 6000);
         } else if (menuLevel == DevTools.LEVEL_DEV && menuSel == DevTools.ROW_SETTLE) {
             settleIdx = DevTools.nextSettle(settleIdx, dir);
             prefs.edit().putInt("settle", settleIdx).commit();
@@ -796,6 +832,45 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         }
         return true;
     }
+
+    // ------------------------------------------------------------ Open with a key (app menu)
+    /**
+     * Points the camera's Download Appli. key function at {@code pkg}/{@code cls}, through Sony's undocumented
+     * {@code DAConnectionManager.registerCustomKeyInfo(package, activity, label)} (by reflection). Tried on an A6000: it
+     * returns true, a key set to Download Appli. then opens Recipe Lab, and that survives a power cycle. The menu still
+     * calls the function Download Appli. — that name is the camera's own, out of any app's reach. Null when the camera
+     * took it, else what went wrong; either way one line in LOG.TXT.
+     */
+    private String registerKey(String pkg, String cls) {
+        String why;
+        try {
+            Class<?> type = Class.forName("android.app.DAConnectionManager");
+            Object manager = type.getConstructor(Context.class).newInstance(this);
+            Object r = type.getMethod("registerCustomKeyInfo", String.class, String.class, String.class).invoke(manager, pkg, cls, appLabel(pkg));
+            why = Boolean.TRUE.equals(r) ? null : "the camera answered " + r;
+        } catch (InvocationTargetException t) { why = String.valueOf(t.getCause()); }
+        catch (Throwable t) { why = String.valueOf(t); }
+        log(CardLog.INFO, "open with a key: " + pkg + "/" + cls + (why == null ? " registered" : ": " + why));
+        return why;
+    }
+
+    /** Download Appli. back to Sony's app store, found by its package: untried on a camera, so said plainly when it fails */
+    private String restoreStore() {
+        try {
+            List<ResolveInfo> found = getPackageManager().queryIntentActivities(new Intent(Intent.ACTION_MAIN).setPackage(DevTools.STORE_PACKAGE), 0);
+            if (found.isEmpty()) return "no " + DevTools.STORE_PACKAGE;
+            return registerKey(DevTools.STORE_PACKAGE, found.get(0).activityInfo.name);
+        } catch (Throwable t) { return String.valueOf(t); }
+    }
+
+    /** an installed app's name, for Sony's third argument; the package when it has none */
+    private String appLabel(String pkg) {
+        try { return String.valueOf(getPackageManager().getApplicationInfo(pkg, 0).loadLabel(getPackageManager())); }
+        catch (Throwable t) { return pkg; }
+    }
+
+    /** the toast after a change: {@code done}, or {@code failed} with the reason */
+    private static String keyResult(String why, String done, String failed) { return why == null ? Lang.t(done) : Lang.t(failed, why); }
 
     // ------------------------------------------------------------ Transfer to phone (app menu): a page that serves the card over Wi-Fi
     /**
@@ -838,6 +913,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
 
     // ------------------------------------------------------------ key logger (developer menu)
     private void startLogger() {
+        clearAf();
         logging = true; logLines.clear();
         appendKeyLog("# " + DevTools.logTitle(KeyProbe.prop("model.name"), KeyProbe.prop("version.platform")) + "  ·  " + keysFound());
         renderLogger();
@@ -889,6 +965,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     /** shoot one frame per recipe, in table order: the gallery of issue #17, and a preview-pipeline test */
     private void startRun() {
         if (camera == null || !previewOk) { showToast(DevTools.noPreview(), 5000); return; }
+        clearAf();
         running = true; runFrame = 0; runReturnTo = recipe;
         runLog = new StringBuilder(DevTools.manifestHeader(Recipes.ALL.length, settleMs())).append('\n');
         handler.post(runStage);
@@ -972,6 +1049,53 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
      */
     private void resumePreview() { try { if (camera != null) camera.startPreview(); } catch (Throwable t) {} }
 
+    // ------------------------------------------------------------ autofocus boxes (FocusOverlayModel, FocusAreaBridge, FocusOverlayView)
+    /** a new camera session: Sony's AF listeners on it, best effort — a body without them shoots as before, with no box */
+    private void openAf() {
+        int gen = af.open();
+        afPlaced = false; afTraced = 0; afPreviewW = 0; afPreviewH = 0;
+        try { Camera.Size s = camera.getParameters().getPreviewSize(); afPreviewW = s.width; afPreviewH = s.height; } catch (Throwable t) {}
+        if (afPreviewW <= 0 || afPreviewH <= 0) {
+            // the A6000 has no preview-size at all; its live view takes the photo's shape (3:2, or 16:9 when the camera is set to it)
+            try { Camera.Size s = camera.getParameters().getPictureSize(); afPreviewW = s.width; afPreviewH = s.height; } catch (Throwable t) {}
+            logAf(afPreviewW > 0 && afPreviewH > 0 ? "no preview size: boxes placed by the picture's shape, " + afPreviewW + "x" + afPreviewH
+                    : "no preview or picture size: no boxes");
+        }
+        String missing = FocusAreaBridge.register(cameraEx, gen, afSink);
+        if (missing != null) logAf("listeners missing: " + missing);
+    }
+
+    /** an AF problem in LOG.TXT, once until a different one comes up */
+    private void logAf(String msg) {
+        if (msg.equals(afNote)) return;
+        afNote = msg;
+        log(CardLog.INFO, "af: " + msg);
+    }
+
+    /** the boxes may show: the live view is up, with nothing over it but the panel, the pill or nothing */
+    private boolean afShows() {
+        return camera != null && previewOk && overlay != OV_BROWSER && !menuOpen && !promptOpen && !nameOpen && !logging && !running;
+    }
+
+    /** S1 down: acquiring, no box until the camera names an area */
+    private void startAf() { afTrace("S1 " + (afShows() ? "down" : "down, boxes not allowed here: preview " + previewOk)); if (afShows()) { af.press(); showAf(); } }
+
+    /** one AF event in LOG.TXT, for the first AF_TRACE of a camera session only: enough to see where the boxes stop */
+    private void afTrace(String what) { if (afTraced < AF_TRACE) { afTraced++; log(CardLog.INFO, "af: " + what); } }
+
+    /** S1 up, the shutter, another recipe, anything over the live view: the boxes go at once, and stay gone until the next S1 */
+    private void clearAf() { af.clear(); showAf(); }
+
+    /** redraws the boxes from the model; only this view is invalidated, nothing is laid out again */
+    private void showAf() {
+        if (afOverlay == null) return;
+        boolean on = afShows();
+        int w = afOverlay.getWidth(), h = afOverlay.getHeight();
+        List<int[]> boxes = on ? af.boxes(w, h, afPreviewW, afPreviewH) : new ArrayList<int[]>();
+        afOverlay.set(on ? af.state() : FocusOverlayModel.IDLE, boxes);
+        if (!afPlaced && !boxes.isEmpty()) { afPlaced = true; log(CardLog.INFO, "af: " + af.describe(w, h, afPreviewW, afPreviewH)); }
+    }
+
     // ------------------------------------------------------------ favourites (app storage, not the camera store: lost on uninstall)
     private void saveFavourites() {
         favStored = Favourites.encode(favs, library, favStored);
@@ -1038,6 +1162,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         nameFor = purpose;
         nameEntry = purpose == NAME_RENAME ? NameEntry.of(library.get(recipe).name)
                 : NameEntry.blank(purpose == NAME_COPY ? CustomRecipes.copyName(library.get(recipe).name, library.customNames()) : CustomRecipes.defaultName(library.customNames()));
+        clearAf();
         nameOpen = true;
         renderName();
     }
@@ -1376,6 +1501,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     private void openBrowser(boolean open) {
+        clearAf();
         if (open) panelBefore = overlay;
         overlay = open ? OV_BROWSER : fullPanel(); row = 0; focus = false;
         browserGroup = Favourites.openingGroup(favs, recipe, library);
@@ -1457,7 +1583,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             case K_FN: openBrowser(false); return true;
             case K_DELETE: case K_SK2: armTrash(sc); return true;       // closes the list on the release; a hold asks to reset
             case K_S1: try { camera.autoFocus(null); } catch (Throwable t) { logPreview("autofocus refused: " + t); } return true;
-            case K_S2: shootKey(); return true;
+            case K_S2: clearAf(); shootKey(); return true;
         }
         return true;
     }
@@ -1533,8 +1659,8 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
             }
             case K_FN: browse(); return true;
             case K_DELETE: case K_SK2: armTrash(sc); return true;       // hides on the release; a hold asks to reset
-            case K_S1: try { camera.autoFocus(null); } catch (Throwable t) { logPreview("autofocus refused: " + t); } return true;
-            case K_S2: shootKey(); return true;
+            case K_S1: startAf(); try { camera.autoFocus(null); } catch (Throwable t) { logPreview("autofocus refused: " + t); } return true;
+            case K_S2: clearAf(); shootKey(); return true;
             case K_MENU: case K_SK1:
                 if (focus) { swallowMenuUp = true; setFocus(false); return true; }
                 if (menuHoldArms(overlay, focus) && menuKeyHold.down(0) == Keys.Hold.ARM) handler.postDelayed(menuHold, HOLD_MS);
@@ -1549,6 +1675,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     public boolean onKeyUp(int keyCode, KeyEvent e) {
         int sc = e.getScanCode();
         if (logging) return logKey(e, false);
+        if (sc == K_S1) clearAf();                               // the half-press let go, whatever is on screen: no box
         // the hold bookkeeping runs on every release, whatever is on screen, or a lost release would block the next press
         if (isTrash(sc)) { handler.removeCallbacks(trashHold); if (trash.up() == Keys.Hold.SHORT) trashPress(); }
         if (isMenu(sc)) { handler.removeCallbacks(menuHold); menuKeyHold.up(); }

@@ -115,7 +115,7 @@ class DisplayOptionsTest {
     @Test void theAppMenuHasOneDisplayRow() {
         assertEquals("Display  >", DevTools.appLabel(DevTools.APP_DISPLAY));
         assertEquals("Panel, histogram, grid and recipe counter", DevTools.appDetail(DevTools.APP_DISPLAY));
-        assertNull(DevTools.appValue(DevTools.APP_DISPLAY, Lang.AUTO), "it opens a submenu, it has no value");
+        assertNull(DevTools.appValue(DevTools.APP_DISPLAY, Lang.AUTO, false), "it opens a submenu, it has no value");
         assertEquals(DevTools.IC_PANEL, DevTools.icons(DevTools.LEVEL_APP)[DevTools.APP_DISPLAY]);
         for (int r = 0; r < DevTools.APP_ROWS; r++)
             assertNotEquals("Panel visibility", DevTools.appLabel(r), "the panel is a row of Display, not of the app menu");

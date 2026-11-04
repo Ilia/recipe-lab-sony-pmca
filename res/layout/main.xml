@@ -8,12 +8,20 @@
         android:layout_width="fill_parent"
         android:layout_height="fill_parent" />
 
-    <!-- Display overlays: the rule-of-thirds grid, then the live histogram top right; both under everything else -->
+    <!-- Display: the rule-of-thirds grid, the autofocus boxes on a half-press, then the live histogram top right;
+         all over the live view, under everything else, and none takes a key -->
     <com.voxivoid.recipelab.CompositionGridView
         android:id="@+id/grid"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:visibility="gone" />
+
+    <com.voxivoid.recipelab.FocusOverlayView
+        android:id="@+id/af"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:clickable="false"
+        android:focusable="false" />
 
     <com.voxivoid.recipelab.HistogramView
         android:id="@+id/histogram"

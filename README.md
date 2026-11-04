@@ -249,7 +249,16 @@ Open **Recipe Lab** from the Application List. The live view shows the look. The
 | **MENU** | leave the app · close a list |
 | **hold MENU** | app menu · in the brand list, a custom recipe's options |
 | **Fn** | brand list *(if your camera has Fn — everything works without it)* |
+| **shutter half-press** | focus, and show where the camera is focusing |
 | **shutter** | take a photo |
+
+**Focus boxes**
+
+- **Half-press the shutter** on the live view: the camera's autofocus area appears as a box.
+- **Amber dashed** — still focusing. **Green** — focus locked. **Amber double** — focus uncertain. **White** — continuous AF.
+- Let go and the box goes. It is never drawn on the photo, and never shows over the brand list, menus or questions.
+- No box with a manual lens, in MF, or when the camera does not say where it focused — the shutter works as before.
+- Tried in code only so far, not yet on a camera: the box may not line up with the camera's own focus frame.
 
 **Badges**
 
@@ -278,7 +287,7 @@ Open **Recipe Lab** from the Application List. The live view shows the look. The
 
 **Menu** — **hold MENU**
 
-- **Browse recipes** · **New recipe** · **Transfer to phone** · **Sync recipes** · **Display** · **Language** · **Reset settings** ·
+- **Browse recipes** · **New recipe** · **Transfer to phone** · **Sync recipes** · **Display** · **Language** · **Open with a key** · **Reset settings** ·
   **Save a bug report** · **About** · **Developer**.
 - **New recipe** saves the camera's current settings as a [custom recipe](#custom-recipes).
 - **Transfer to phone** sends your photos to the phone over Wi-Fi — see [Transfer to phone](#transfer-to-phone).
@@ -288,6 +297,12 @@ Open **Recipe Lab** from the Application List. The live view shows the look. The
   same states trash steps through, and the app opens on the one you left it on), a live histogram and a rule-of-thirds
   grid, and the recipe counter. Left and right change a row. The histogram and grid are not yet tried on a camera.
 - Languages: *Auto*, English, 简体中文, 繁體中文, 日本語, 한국어, Tiếng Việt.
+- **Open with a key** puts Recipe Lab on a button. Turn it on, leave the app, then in the camera's
+  `MENU → Custom Settings → Custom Key Settings` set a key (C1, say) to **Download Appli.**: that key now opens Recipe
+  Lab from the shooting screen, and keeps doing so after a power cycle. The camera still calls the function
+  *Download Appli.* — its menu names are its own. Turning the row off points it back at Sony's app store. Remove the app
+  and the key says *The application is either not set or has been uninstalled* until you set it to something else.
+  Tried on an A6000.
 
 ## Custom recipes
 
