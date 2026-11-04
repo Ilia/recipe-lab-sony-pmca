@@ -966,7 +966,12 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
         int gen = af.open();
         afPlaced = false; afTraced = 0; afPreviewW = 0; afPreviewH = 0;
         try { Camera.Size s = camera.getParameters().getPreviewSize(); afPreviewW = s.width; afPreviewH = s.height; } catch (Throwable t) {}
-        if (afPreviewW <= 0 || afPreviewH <= 0) logAf("no preview size: no boxes");
+        if (afPreviewW <= 0 || afPreviewH <= 0) {
+            // the A6000 has no preview-size at all; its live view takes the photo's shape (3:2, or 16:9 when the camera is set to it)
+            try { Camera.Size s = camera.getParameters().getPictureSize(); afPreviewW = s.width; afPreviewH = s.height; } catch (Throwable t) {}
+            logAf(afPreviewW > 0 && afPreviewH > 0 ? "no preview size: boxes placed by the picture's shape, " + afPreviewW + "x" + afPreviewH
+                    : "no preview or picture size: no boxes");
+        }
         String missing = FocusAreaBridge.register(cameraEx, gen, afSink);
         if (missing != null) logAf("listeners missing: " + missing);
     }

@@ -299,12 +299,14 @@ numbers draw nothing — the overlay never guesses a centre box.
 a menu, a question, the name editor, the key logger or the sample run opens, and on pause. A result that arrives after
 the release, or from a camera session before the current one, is dropped, so a late callback never brings a box back.
 
-**Where they go — unverified.** The rectangles are taken to span −1000..1000 across the live image
-(`FocusOverlayModel.SOURCE_MIN` / `SOURCE_MAX`, as Android focus areas and sony-remote-reboot have it), and the live
-image to be the preview size (`getPreviewSize()`) fitted, centred, in the view. No rotation or mirroring is applied.
-None of this has been checked on an A6000. The first box of each session writes one line to LOG.TXT —
+**Where they go.** The rectangles span −1000..1000 across the live image (`FocusOverlayModel.SOURCE_MIN` /
+`SOURCE_MAX`, as Android focus areas and sony-remote-reboot have it) — on an A6000 (firmware 3.20) all 26 areas Sony
+sends fall inside it, the widest `[-784,-819,785,820]`. The live image is taken to be the preview size
+(`getPreviewSize()`) fitted, centred, in the view; the A6000 has no `preview-size` parameter at all, so the picture size
+(`getPictureSize()`, 6000x4000 at 3:2) gives the shape instead. No rotation or mirroring is applied. Whether a box sits
+exactly on the camera's own AF frame is not yet checked. The first box of each session writes one line to LOG.TXT —
 `af: preview WxH view WxH state S  #index l,t,r,b > l,t,r,b` — which, with a photo of the screen with Flexible Spot moved
-off centre, is what settles it. No preview size means no box. `CameraEx.getFocusAreaInfos(int)` could seed the catalog
+off centre, is what settles it. With neither size there is no box. The first 12 AF events of each session (S1, the area list Sony sent, start, done and how many areas matched) are logged too, `af: …`, to see where a box is lost. `CameraEx.getFocusAreaInfos(int)` could seed the catalog
 before the first `onChanged`, but what its argument means is not known, so it is not called.
 
 ## Custom recipes
