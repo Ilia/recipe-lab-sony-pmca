@@ -186,7 +186,8 @@ histogram is not worth. The shutter key clears the graph until the next frame. R
 
 **The grid** sits at a third and two thirds of the preview image: `DisplayOptions.contentRect` fits the preview size
 the camera reports (`getPreviewSize`, read when the surface is created) into the view, centred, leaving out letterbox
-bars; with no size it uses the whole view. Whether the camera letterboxes its image that way or stretches it over the
+bars. The A6000 (firmware 3.20) has no `preview-size` parameter at all; its live view takes the photo's shape, so the
+picture size (`getPictureSize`, 6000x4000 at 3:2) stands in. With neither it uses the whole view. Whether the camera letterboxes its image that way or stretches it over the
 surface has not been checked on a body.
 
 **Not yet verified on a camera.** None of this has been run on an A6000 or any other body: that the analysis callback

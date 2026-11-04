@@ -387,7 +387,9 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     public void surfaceCreated(SurfaceHolder h) {
         try { camera.setPreviewDisplay(h); camera.startPreview(); previewOn = true; }
         catch (Throwable t) { previewOk = false; previewErr = String.valueOf(t); logPreview("preview did not start: " + previewErr); render(); }
-        try { Camera.Size s = camera.getParameters().getPreviewSize(); grid.setPreviewSize(s.width, s.height); } catch (Throwable t) {}
+        // the A6000 has no preview-size parameter; its live view takes the photo's shape, so the picture size stands in
+        try { Camera.Size s = camera.getParameters().getPreviewSize(); grid.setPreviewSize(s.width, s.height); }
+        catch (Throwable t) { try { Camera.Size s = camera.getParameters().getPictureSize(); grid.setPreviewSize(s.width, s.height); } catch (Throwable u) {} }
         refreshOverlays();
     }
     public void surfaceChanged(SurfaceHolder h, int f, int w, int hh) {}
