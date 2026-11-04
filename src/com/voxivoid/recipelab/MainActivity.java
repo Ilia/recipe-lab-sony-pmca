@@ -144,11 +144,17 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     private int afPreviewW = 0, afPreviewH = 0;                // the live image's size, where the boxes are placed in
     private String afNote = "";                                // the last AF problem logged: each said once, not per event
     private boolean afPlaced = false;                          // this session's first drawn box is logged, for alignment checks
+    private int afTraced = 0;                                  // AF events logged this session: the first AF_TRACE, to see where boxes stop
+    private static final int AF_TRACE = 12;
     /** Sony's AF callbacks, on Sony's thread: posted to the UI thread, where the model drops anything stale */
     private final FocusAreaBridge.Sink afSink = new FocusAreaBridge.Sink() {
-        public void areas(final int gen, final FocusOverlayModel.Area[] a) { handler.post(new Runnable() { public void run() { af.areas(gen, a); } }); }
-        public void started(final int gen) { handler.post(new Runnable() { public void run() { if (af.started(gen)) showAf(); } }); }
-        public void done(final int gen, final int status, final int[] ids) { handler.post(new Runnable() { public void run() { if (af.done(gen, status, ids)) showAf(); } }); }
+        public void areas(final int gen, final FocusOverlayModel.Area[] a) { handler.post(new Runnable() { public void run() {
+            afTrace("areas " + FocusOverlayModel.describeAreas(a)); af.areas(gen, a); } }); }
+        public void started(final int gen) { handler.post(new Runnable() { public void run() { afTrace("start"); if (af.started(gen)) showAf(); } }); }
+        public void done(final int gen, final int status, final int[] ids) { handler.post(new Runnable() { public void run() {
+            boolean taken = af.done(gen, status, ids);
+            afTrace("done status " + status + " ids " + java.util.Arrays.toString(ids) + (taken ? " -> " + af.shown().size() + " area(s)" : " dropped (stale or S1 up)"));
+            if (taken) showAf(); } }); }
         public void failed(final String what) { handler.post(new Runnable() { public void run() { logAf("callback failed: " + what); } }); }
     };
 
@@ -958,7 +964,7 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     /** a new camera session: Sony's AF listeners on it, best effort — a body without them shoots as before, with no box */
     private void openAf() {
         int gen = af.open();
-        afPlaced = false; afPreviewW = 0; afPreviewH = 0;
+        afPlaced = false; afTraced = 0; afPreviewW = 0; afPreviewH = 0;
         try { Camera.Size s = camera.getParameters().getPreviewSize(); afPreviewW = s.width; afPreviewH = s.height; } catch (Throwable t) {}
         if (afPreviewW <= 0 || afPreviewH <= 0) logAf("no preview size: no boxes");
         String missing = FocusAreaBridge.register(cameraEx, gen, afSink);
@@ -978,7 +984,10 @@ public class MainActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     /** S1 down: acquiring, no box until the camera names an area */
-    private void startAf() { if (afShows()) { af.press(); showAf(); } }
+    private void startAf() { afTrace("S1 " + (afShows() ? "down" : "down, boxes not allowed here: preview " + previewOk)); if (afShows()) { af.press(); showAf(); } }
+
+    /** one AF event in LOG.TXT, for the first AF_TRACE of a camera session only: enough to see where the boxes stop */
+    private void afTrace(String what) { if (afTraced < AF_TRACE) { afTraced++; log(CardLog.INFO, "af: " + what); } }
 
     /** S1 up, the shutter, another recipe, anything over the live view: the boxes go at once, and stay gone until the next S1 */
     private void clearAf() { af.clear(); showAf(); }

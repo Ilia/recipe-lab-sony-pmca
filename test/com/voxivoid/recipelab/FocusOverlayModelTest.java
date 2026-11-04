@@ -280,4 +280,20 @@ class FocusOverlayModelTest {
         lines.addAll(Files.readAllLines(Paths.get("src/com/voxivoid/recipelab/FocusAreaBridge.java"), StandardCharsets.UTF_8));
         for (String l : lines) assertFalse(l.startsWith("import android."), l);
     }
+
+    @Test void theAreaListIsDescribedAsSonySentIt() {
+        assertEquals("no area list", FocusOverlayModel.describeAreas(null));
+        assertEquals("0 areas, 0 drawable:", FocusOverlayModel.describeAreas(new FocusOverlayModel.Area[0]));
+        FocusOverlayModel.Area[] a = {
+            new FocusOverlayModel.Area(0, true, -100, -100, 100, 100),
+            new FocusOverlayModel.Area(1, false, -50, -50, 50, 50),
+            null,
+            new FocusOverlayModel.Area(3, true, 0, 0, 40, 40),
+        };
+        assertEquals("4 areas, 2 drawable: #0 on [-100,-100,100,100] #1 off [-50,-50,50,50] null", FocusOverlayModel.describeAreas(a),
+                "the off one is not drawable; only the first three are written out");
+        FocusOverlayModel.Area[] pixels = { new FocusOverlayModel.Area(0, true, 200, 150, 1400, 1100) };
+        assertEquals("1 areas, 0 drawable: #0 on [200,150,1400,1100]", FocusOverlayModel.describeAreas(pixels),
+                "a range other than -1000..1000 shows up as nothing drawable");
+    }
 }

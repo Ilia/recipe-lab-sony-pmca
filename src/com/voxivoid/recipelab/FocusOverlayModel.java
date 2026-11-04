@@ -120,6 +120,25 @@ final class FocusOverlayModel {
         return out;
     }
 
+    /**
+     * One LOG.TXT line about the area list Sony sent: how many, how many {@link Area#drawable}, and the first few as
+     * given — {@code 9 areas, 0 drawable: #0 on [12,40,52,80] #1 off [..]}. What an on-camera check needs to see why
+     * no box shows (another coordinate range, areas flagged off) without a debugger.
+     */
+    static String describeAreas(Area[] areas) {
+        if (areas == null) return "no area list";
+        int drawable = 0;
+        for (Area a : areas) if (a != null && a.drawable()) drawable++;
+        StringBuilder b = new StringBuilder().append(areas.length).append(" areas, ").append(drawable).append(" drawable:");
+        for (int i = 0; i < Math.min(3, areas.length); i++) {
+            Area a = areas[i];
+            if (a == null) { b.append(" null"); continue; }
+            b.append(" #").append(a.index).append(a.enabled ? " on [" : " off [").append(a.left).append(',').append(a.top)
+                    .append(',').append(a.right).append(',').append(a.bottom).append(']');
+        }
+        return b.toString();
+    }
+
     private static Area byIndex(Area[] catalog, int id) {
         for (Area a : catalog) if (a != null && a.index == id) return a;
         return null;
